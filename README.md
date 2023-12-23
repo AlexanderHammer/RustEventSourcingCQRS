@@ -1,3 +1,3 @@
 Prerequisites:
-- EventStore Docker image (docker run --name esdb-node -it -p 2113:2113 -p 1113:1113 \ eventstore/eventstore:latest --insecure --run-projections=All)
+- EventStore Docker image (docker run --name esdb-node -it -p 2113:2113 -p 1113:1113 eventstore/eventstore:latest --insecure --run-projections=All)
 - More brains than me
