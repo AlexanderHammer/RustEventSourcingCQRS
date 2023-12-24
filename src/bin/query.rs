@@ -1,22 +1,15 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use mongodb::{
     bson::{doc, Document},
-    Client, Collection,
+    Client,
 };
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct Foo {
-    pub(crate) is_rust_a_nice_language: bool,
-}
 
 #[get("/")]
 async fn get_movie(client: web::Data<Client>) -> impl Responder {
-    // Get a handle on the movies collection
-    let database = client.database("sample_mflix");
-    let my_coll: Collection<Document> = database.collection("movies");
+    let collection: mongodb::Collection<Document> =
+        client.database("sample_mflix").collection("movies");
     // Find a movie based on the title value
-    let my_movie = my_coll
+    let my_movie = collection
         .find_one(doc! { "title": "The Perils of Pauline" }, None)
         .await;
     // Print the document
