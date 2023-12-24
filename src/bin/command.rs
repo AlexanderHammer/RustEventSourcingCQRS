@@ -54,7 +54,7 @@ async fn post_language_vote(mut payload: web::Payload) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(move || App::new().service(post_language_vote))
+    HttpServer::new(|| App::new().service(post_language_vote))
         .bind(("localhost", 8081))?
         .run()
         .await
