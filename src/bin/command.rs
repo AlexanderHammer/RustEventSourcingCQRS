@@ -25,7 +25,7 @@ const MAX_SIZE: usize = 262_144; // max payload size is 256k
 async fn post_language_vote(es_client: web::Data<ESClient>,  mut payload: web::Payload) -> impl Responder {
     let mut body = web::BytesMut::new();
     while let Some(chunk) = payload.next().await {
-        let chunk = chunk.unwrap();
+        let chunk = chunk?;
         // limit max size of in-memory payload
         if (body.len() + chunk.len()) > MAX_SIZE {
             return Err(error::ErrorBadRequest("overflow"));
