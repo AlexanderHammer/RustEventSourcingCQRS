@@ -41,7 +41,7 @@ async fn post_language_vote(es_client: web::Data<ESClient>,  mut payload: web::P
         .await
         .unwrap();
 
-    Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&obj).unwrap()))
+    Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&obj)?))
 }
 
 #[actix_web::main]
