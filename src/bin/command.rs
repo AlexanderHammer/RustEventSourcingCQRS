@@ -1,10 +1,7 @@
 use actix_web::{error, post, web, App, HttpResponse, HttpServer, Responder};
 use eventstore::{Client as ESClient, EventData};
 use futures::StreamExt;
-use mongodb::{
-    bson::{doc, Document},
-    Client as MongoClient, Collection,
-};
+use mongodb::{bson::{doc, Document}, Client as MongoClient, Client, Collection};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -25,7 +22,7 @@ enum LanguageKind {
 const MAX_SIZE: usize = 262_144; // max payload size is 256k
 
 #[post("/language-vote")]
-async fn post_language_vote(mut payload: web::Payload) -> impl Responder {
+async fn post_language_vote(es_client: web::Data<ESClient>,  mut payload: web::Payload) -> impl Responder {
     let mut body = web::BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = chunk.unwrap();
@@ -39,11 +36,6 @@ async fn post_language_vote(mut payload: web::Payload) -> impl Responder {
     let obj = serde_json::from_slice::<LanguageVote>(&body)?;
     let evt = EventData::json("language-poll", &obj)?;
 
-    let settings = "esdb://admin:changeit@localhost:2113?tls=false"
-        .parse()
-        .unwrap();
-    let es_client = ESClient::new(settings).unwrap();
-
     es_client
         .append_to_stream("language-stream", &Default::default(), evt)
         .await
@@ -54,8 +46,17 @@ async fn post_language_vote(mut payload: web::Payload) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(post_language_vote))
-        .bind(("localhost", 8081))?
-        .run()
-        .await
+    let settings = "esdb://admin:changeit@localhost:2113?tls=false"
+        .parse()
+        .unwrap();
+    let es_client = ESClient::new(settings).unwrap();
+
+    HttpServer::new(move || {
+        App::new()
+            .service(post_language_vote)
+            .app_data(web::Data::new(es_client.clone()))
+    })
+    .bind(("localhost", 8081))?
+    .run()
+    .await
 }
