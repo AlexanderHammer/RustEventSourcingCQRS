@@ -3,7 +3,13 @@ name = "EventRust"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "command"
+path = "src/bin/command.rs"
+
+[[bin]]
+name = "query"
+path = "src/bin/query.rs"
 
 [dependencies]
 eventstore = "2.3.0"
@@ -11,8 +17,7 @@ serde = "1.0.193"
 tokio = { version = "1.35.1", features = ["full"] }
 uuid = "1.6.1"
 futures = "0.3.29"
-actix-web = "4"
-
+actix-web = "4.4.0"
 
 # tokio-runtim is optional
 [dependencies.mongodb]
