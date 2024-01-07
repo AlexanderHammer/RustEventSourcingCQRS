@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use actix_web::{error, post, web, App, HttpResponse, HttpServer, Responder};
 use eventstore::{AppendToStreamOptions, Client, EventData};
 use futures::StreamExt;
@@ -17,18 +19,9 @@ const MAX_SIZE: usize = 262_144; // max payload size is 256k
 #[post("/stock-item")]
 async fn post_stock_item(
     es_client: web::Data<Client>,
-    mut payload: web::Payload,
+    payload: web::Payload,
 ) -> impl Responder {
-    let mut body = web::BytesMut::new();
-    while let Some(chunk) = payload.next().await {
-        let chunk = chunk?;
-        // limit max size of in-memory payload
-        if (body.len() + chunk.len()) > MAX_SIZE {
-            return Err(error::ErrorPayloadTooLarge("overflow"));
-        }
-        body.extend_from_slice(&chunk);
-    }
-
+    let body = payload_to_u8(payload).await?;
     let obj = serde_json::from_slice::<CreateStockItem>(&body)?;
     let evt = EventData::json("stock-item-created", &obj)?.id(Uuid::new_v4());
 
@@ -41,6 +34,19 @@ async fn post_stock_item(
         Ok(_) => return Ok(HttpResponse::Accepted()),
         Err(_) => Err(error::ErrorExpectationFailed("Stock item already exists"))
     }
+}
+
+async fn payload_to_u8(mut payload: web::Payload) -> Result<web::BytesMut, Box<dyn Error>>   {
+    let mut body = web::BytesMut::new();
+    while let Some(chunk) = payload.next().await {
+        let chunk = chunk?;
+        // limit max size of in-memory payload
+        if (body.len() + chunk.len()) > MAX_SIZE {
+            return Err("Payload to large".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }
 
 #[actix_web::main]
