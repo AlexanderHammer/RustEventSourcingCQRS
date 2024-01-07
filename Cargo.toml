@@ -4,12 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "command"
+name = "Command"
 path = "src/bin/command.rs"
 
 [[bin]]
-name = "query"
+name = "Query"
 path = "src/bin/query.rs"
+
+[[bin]]
+name = "CommandHandler"
+path = "src/bin/command_handler.rs"
 
 [dependencies]
 eventstore = "2.3.0"

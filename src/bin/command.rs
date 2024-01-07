@@ -1,5 +1,4 @@
 use std::error::Error;
-
 use actix_web::{error, post, web, App, HttpResponse, HttpServer, Responder};
 use eventstore::{AppendToStreamOptions, Client, EventData};
 use futures::StreamExt;
@@ -22,9 +21,9 @@ async fn post_stock_item(
     es_client: web::Data<Client>,
     payload: web::Payload,
 ) -> impl Responder {
-    let body = payload_to_u8(payload).await?;
+    let body = payload_to_bytes_mut(payload).await?;
     let obj = serde_json::from_slice::<CreateStockItem>(&body)?;
-    let evt = EventData::json("stock-item-created", &obj)?.id(Uuid::new_v4());
+    let evt = EventData::json("create-stock-item", &obj)?.id(Uuid::new_v4());
 
     let options =
         AppendToStreamOptions::default().expected_revision(eventstore::ExpectedRevision::NoStream);
@@ -37,7 +36,7 @@ async fn post_stock_item(
     }
 }
 
-async fn payload_to_u8(mut payload: web::Payload) -> Result<web::BytesMut, Box<dyn Error>>   {
+async fn payload_to_bytes_mut(mut payload: web::Payload) -> Result<web::BytesMut, Box<dyn Error>>   {
     let mut body = web::BytesMut::new();
     while let Some(chunk) = payload.next().await {
         let chunk = chunk?;
