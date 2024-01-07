@@ -17,7 +17,7 @@ pub(crate) struct CreateStockItem {
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct CreateGenericEvent {
     pub(crate) stream_name: String,
-    pub(crate) prefix: String,
+    pub(crate) stream_prefix: String,
     pub(crate) event_type: String,
     pub(crate) data: HashMap<String, String>,
 }
@@ -51,17 +51,17 @@ async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) ->
 async fn post_generic_event(es_client: web::Data<Client>, payload: web::Payload) -> impl Responder {
     let body = payload_to_bytes_mut(payload).await?;
     let command = serde_json::from_slice::<CreateGenericEvent>(&body)?;
-    if command.prefix.is_empty() || command.stream_name.is_empty() || command.event_type.is_empty()
+    if command.stream_prefix.is_empty() || command.stream_name.is_empty() || command.event_type.is_empty()
     {
         return Err(error::ErrorBadRequest(format!(
-            "Prefix, stream name and event type are required: {}, {}, {}",
-            command.prefix, command.stream_name, command.event_type
+            "Stream prefix, stream name and event type are required: {}, {}, {}",
+            command.stream_prefix, command.stream_name, command.event_type
         )));
     }
     let evt = EventData::json(&command.event_type, GenericEvent { data: command.data })?
         .id(Uuid::new_v4());
     let options = AppendToStreamOptions::default();
-    let stream_name = format!("{}-{}", command.prefix, command.stream_name);
+    let stream_name = format!("{}-{}", command.stream_prefix, command.stream_name);
 
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
