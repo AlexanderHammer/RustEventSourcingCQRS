@@ -28,7 +28,8 @@ async fn post_stock_item(
     let options =
         AppendToStreamOptions::default().expected_revision(eventstore::ExpectedRevision::NoStream);
 
-    let append_result = es_client.append_to_stream(obj.part_no, &options, evt);
+    let stream_name = format!("stockItem-{}", obj.part_no);
+    let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
         Ok(_) => return Ok(HttpResponse::Accepted()),
