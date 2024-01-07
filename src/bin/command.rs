@@ -10,6 +10,7 @@ use uuid::Uuid;
 pub(crate) struct CreateStockItem {
     pub(crate) part_no: String,
     pub(crate) name: String,
+    pub(crate) description: String,
     pub(crate) category: String,
     pub(crate) count: u64,
 }
