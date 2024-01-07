@@ -1,5 +1,5 @@
 use std::error::Error;
-use eventstore::{Client, RetryOptions, SubscribeToAllOptions};
+use eventstore::{Client, RetryOptions, SubscribeToAllOptions, SubscriptionFilter};
 
 #[tokio::main]
 async fn main(){
@@ -13,14 +13,15 @@ async fn main(){
 
 async fn read_all_events(client: Client) -> Result<(), Box<dyn Error>>  {
     let retry = RetryOptions::default().retry_forever();
-    let options = SubscribeToAllOptions::default().retry_options(retry);
-    let mut stream = client.subscribe_to_all(&options).await;
+    let filter = SubscriptionFilter::on_event_type().exclude_system_events();
+    let options = SubscribeToAllOptions::default().filter(filter).retry_options(retry);
+    let mut sub = client.subscribe_to_all(&options).await;
 
     loop {
-        let event = stream.next().await?;
-        if event.get_original_event().event_type.starts_with("$") {
-            continue;
-        }
-        print!("Received event: {:?}", event.get_original_event().event_type);
+        let event = sub.next().await?;
+        let stream_id = event.get_original_stream_id();
+        let revision = event.get_original_event().revision;
+
+        println!("Received event {}@{}", revision, stream_id);
     }
 }
