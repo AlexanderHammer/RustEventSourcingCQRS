@@ -1,9 +1,12 @@
+mod stock_event;
+
 use actix_web::{delete, error, post, put, web, App, HttpResponse, HttpServer, Responder};
 use eventstore::{AppendToStreamOptions, Client, EventData};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, error::Error};
 use uuid::Uuid;
+use stock_event::StockEvent;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct CreateStockItem {
@@ -38,18 +41,20 @@ pub(crate) struct GenericEvent {
     pub(crate) data: HashMap<String, String>,
 }
 
+const STREAM_PREFIX: &str = "stockItem";
 const MAX_SIZE: usize = 262_144; // max payload size is 256k
+
 
 #[post("/stock-item")]
 async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) -> impl Responder {
     let body = payload_to_bytes_mut(payload).await?;
     let command = serde_json::from_slice::<CreateStockItem>(&body)?;
-    let evt = EventData::json("create-stock-item", &command)?.id(Uuid::new_v4());
+    let evt = EventData::json(StockEvent::CREATE.to_string(), &command)?.id(Uuid::new_v4());
 
     let options =
         AppendToStreamOptions::default().expected_revision(eventstore::ExpectedRevision::NoStream);
 
-    let stream_name = format!("stockItem-{}", command.part_no);
+    let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
@@ -65,12 +70,12 @@ async fn add_amount(
 ) -> impl Responder {
     let (part_no, count) = path.into_inner();
     let command = AdjustStockItem { part_no, count };
-    let evt = EventData::json("add-stock-item", &command)?.id(Uuid::new_v4());
+    let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
 
     let options = AppendToStreamOptions::default()
         .expected_revision(eventstore::ExpectedRevision::StreamExists);
 
-    let stream_name = format!("stockItem-{}", command.part_no);
+    let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
@@ -86,12 +91,12 @@ async fn set_amount(
 ) -> impl Responder {
     let (part_no, count) = path.into_inner();
     let command = AdjustStockItem { part_no, count };
-    let evt = EventData::json("set-stock-item", &command)?.id(Uuid::new_v4());
+    let evt = EventData::json(StockEvent::SET.to_string(), &command)?.id(Uuid::new_v4());
 
     let options = AppendToStreamOptions::default()
         .expected_revision(eventstore::ExpectedRevision::StreamExists);
 
-    let stream_name = format!("stockItem-{}", command.part_no);
+    let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
@@ -107,33 +112,12 @@ async fn delete_stock_item(
 ) -> impl Responder {
     let part_no = path.into_inner();
     let command = DeleteStockItem { part_no };
-    let evt = EventData::json("delete-stock-item", &command)?.id(Uuid::new_v4());
+    let evt = EventData::json(StockEvent::DELETE.to_string(), &command)?.id(Uuid::new_v4());
 
     let options = AppendToStreamOptions::default()
         .expected_revision(eventstore::ExpectedRevision::StreamExists);
 
-    let stream_name = format!("stockItem-{}", command.part_no);
-    let append_result = es_client.append_to_stream(stream_name, &options, evt);
-
-    match append_result.await {
-        Ok(_) => return Ok(HttpResponse::Accepted()),
-        Err(_) => Err(error::ErrorExpectationFailed("Who knows")),
-    }
-}
-
-#[post("/stock-item/remove/{part_no}/{count}")]
-async fn remove_amount(
-    es_client: web::Data<Client>,
-    path: web::Path<(String, u64)>,
-) -> impl Responder {
-    let (part_no, count) = path.into_inner();
-    let command = AdjustStockItem { part_no, count };
-    let evt = EventData::json("remove-stock-item", &command)?.id(Uuid::new_v4());
-
-    let options = AppendToStreamOptions::default()
-        .expected_revision(eventstore::ExpectedRevision::StreamExists);
-
-    let stream_name = format!("stockItem-{}", command.part_no);
+    let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
@@ -196,12 +180,11 @@ async fn main() -> std::io::Result<()> {
             .service(post_stock_item)
             .service(post_generic_event)
             .service(add_amount)
-            .service(remove_amount)
             .service(delete_stock_item)
             .service(set_amount)
             .app_data(web::Data::new(es_client.clone()))
     })
-    .bind(("localhost", 8081))?
-    .run()
-    .await
+        .bind(("localhost", 8081))?
+        .run()
+        .await
 }
