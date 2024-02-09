@@ -1,45 +1,16 @@
 mod stock_event;
+mod request;
 
 use actix_web::{delete, error, post, put, web, App, HttpResponse, HttpServer, Responder};
 use eventstore::{AppendToStreamOptions, Client, EventData};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, error::Error};
+use std::{error::Error};
 use uuid::Uuid;
 use stock_event::StockEvent;
+use request::{CreateStockItem, AdjustStockItem, DeleteStockItem, CreateGenericEvent, GenericEvent};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct CreateStockItem {
-    pub(crate) part_no: String,
-    pub(crate) name: String,
-    pub(crate) description: String,
-    pub(crate) category: String,
-    pub(crate) count: u64,
-}
 
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct AdjustStockItem {
-    pub(crate) part_no: String,
-    pub(crate) count: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct DeleteStockItem {
-    pub(crate) part_no: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct CreateGenericEvent {
-    pub(crate) stream_name: String,
-    pub(crate) stream_prefix: String,
-    pub(crate) event_type: String,
-    pub(crate) data: HashMap<String, String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct GenericEvent {
-    pub(crate) data: HashMap<String, String>,
-}
 
 const STREAM_PREFIX: &str = "stockItem";
 const MAX_SIZE: usize = 262_144; // max payload size is 256k

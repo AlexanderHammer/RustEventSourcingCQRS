@@ -1,4 +1,5 @@
 mod stock_event;
+mod request;
 
 use eventstore::{Client as ESClient, RetryOptions, SubscribeToAllOptions, SubscriptionFilter};
 use std::error::Error;
@@ -8,7 +9,9 @@ use mongodb::{
     Client as MDBClient,
 };
 use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
+use serde::{Deserialize, Serialize};
 use stock_event::StockEvent;
+use request::{CreateStockItem, AdjustStockItem, DeleteStockItem, CreateGenericEvent, GenericEvent};
 
 #[tokio::main]
 async fn main() {
@@ -26,12 +29,12 @@ async fn main() {
         .parse()
         .unwrap();
     let es_client = ESClient::new(settings).unwrap();
-    if let Err(err) = read_all_events(es_client, mongo_client).await {
+    if let Err(err) = read_all_events(&es_client, &mongo_client).await {
         eprintln!("Error while reading events: {}", err);
     }
 }
 
-async fn read_all_events(es_client: ESClient, mdb_client: MDBClient) -> Result<(), Box<dyn Error>> {
+async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result<(), Box<dyn Error>> {
     let retry = RetryOptions::default().retry_forever();
     let filter = SubscriptionFilter::on_event_type()
         .add_prefix("stockItem")
@@ -54,10 +57,16 @@ async fn read_all_events(es_client: ESClient, mdb_client: MDBClient) -> Result<(
         match parse_result {
             Ok(event_type) => {
                 match event_type {
-                    StockEvent::ADD => {
-                        println!("Creating stock item");
-                    }
                     StockEvent::CREATE => {
+                        let create_event = match event.get_original_event().as_json() {
+                            Ok(x) => x,
+                            Err(_) => todo!(),
+                        };
+                        create(mdb_client, create_event).await.unwrap_or_else(|e| {
+                            eprintln!("Error while creating stock item: {}", e);
+                        })
+                    }
+                    StockEvent::ADD => {
                         println!("Adding stock item");
                     }
                     StockEvent::SET => {
@@ -68,7 +77,7 @@ async fn read_all_events(es_client: ESClient, mdb_client: MDBClient) -> Result<(
                     }
                 }
             }
-            Err(error) => {
+            Err(_) => {
                 println!(
                     "Received event {}@{}, {:?}",
                     revision,
@@ -78,4 +87,14 @@ async fn read_all_events(es_client: ESClient, mdb_client: MDBClient) -> Result<(
             }
         };
     }
+}
+
+async fn create(mdb_client: &MDBClient, event: CreateStockItem) -> Result<(), Box<dyn Error>> {
+    let collection: mongodb::Collection<CreateStockItem> = mdb_client.database("stock").collection("stockItems");
+    let ct = collection.count_documents(doc! { "part_no": doc! { "$regex": &event.part_no } }, None).await?;
+    if(ct > 0) {
+        return Err("Stock item already exists".into());
+    }
+    collection.insert_one(&event, None).await?;
+    Ok(())
 }
