@@ -79,6 +79,8 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
                 } else {
                     return Err(error::ErrorExpectationFailed("Parsing CreateStockItem failed"));
                 }
+            } else {
+                return Err(error::ErrorExpectationFailed("Unknown event type"));
             }
 
             let command = AdjustStockItem { part_no: part_no.clone(), increment, total: prev_total + increment };
