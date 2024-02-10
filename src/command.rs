@@ -65,23 +65,26 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
         while let Ok(Some(event)) = stream.next().await
         {
             let mut prev_total: u64 = 0;
-            let original = event.get_original_event();
-            match StockEvent::from_str(original.event_type.as_str()) {
-                Ok(StockEvent::ADD) => match original.as_json::<AdjustStockItem>() {
-                    Ok(event) => prev_total = event.total,
-                    Err(_) => ()
-                },
-                Ok(StockEvent::CREATE) => match original.as_json::<CreateStockItem>() {
-                    Ok(event) => prev_total = event.total,
-                    Err(_) => ()
-                },
-                _ => ()
+            let recorded_event = event.get_original_event();
+
+            if let Ok(StockEvent::ADD) = StockEvent::from_str(recorded_event.event_type.as_str()) {
+                if let Ok(event) = recorded_event.as_json::<AdjustStockItem>() {
+                    prev_total = event.total
+                } else {
+                    return Err(error::ErrorExpectationFailed("Parsing AdjustStockItem failed"));
+                }
+            } else if let Ok(StockEvent::CREATE) = StockEvent::from_str(recorded_event.event_type.as_str()) {
+                if let Ok(event) = recorded_event.as_json::<CreateStockItem>() {
+                    prev_total = event.total
+                } else {
+                    return Err(error::ErrorExpectationFailed("Parsing CreateStockItem failed"));
+                }
             }
 
             let command = AdjustStockItem { part_no: part_no.clone(), increment, total: prev_total + increment };
             let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
             let options = AppendToStreamOptions::default().
-                expected_revision(ExpectedRevision::Exact(original.revision));
+                expected_revision(ExpectedRevision::Exact(recorded_event.revision));
             let append_result = es_client.append_to_stream(&stream_name, &options, evt);
 
             return match append_result.await {
