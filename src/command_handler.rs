@@ -7,7 +7,7 @@ use std::str::FromStr;
 use mongodb::{bson::{doc}, Client as MDBClient};
 use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
 use stock_event::StockEvent;
-use request::{CreateStockItem, AdjustStockItem, DeleteStockItem, CreateGenericEvent, GenericEvent};
+use request::{CreateStockItem, AdjustStockItem, DeleteStockItem};
 
 #[tokio::main]
 async fn main() {
@@ -40,9 +40,6 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
         .retry_options(retry);
     let mut sub = es_client.subscribe_to_all(&options).await;
 
-    mdb_client.database("admin").run_command(doc! { "ping": 1 }, None).await?;
-    println!("Pinged your deployment. You successfully connected to MongoDB!");
-
     loop {
         let event = sub.next().await?;
         let stream_id = event.get_original_stream_id();
@@ -52,22 +49,36 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
             Ok(event_type) => {
                 match event_type {
                     StockEvent::CREATE => {
-                        let create_event = match event.get_original_event().as_json() {
-                            Ok(x) => x,
+                        match event.get_original_event().as_json() {
+                            Ok(x) => create(mdb_client, x).await.unwrap_or_else(|e| {
+                                eprintln!("Error while creating stock item: {}", e);
+                            }),
                             Err(_) => todo!(),
                         };
-                        create(mdb_client, create_event).await.unwrap_or_else(|e| {
-                            eprintln!("Error while creating stock item: {}", e);
-                        })
                     }
                     StockEvent::ADD => {
-                        println!("Adding stock item");
+                        match event.get_original_event().as_json() {
+                            Ok(x) => add(mdb_client, x).await.unwrap_or_else(|e| {
+                                eprintln!("Error while adding amount to stock item: {}", e);
+                            }),
+                            Err(_) => todo!(),
+                        };
                     }
                     StockEvent::SET => {
-                        println!("Setting stock item");
+                        match event.get_original_event().as_json() {
+                            Ok(x) => set(mdb_client, x).await.unwrap_or_else(|e| {
+                                eprintln!("Error while setting new amount for stock item: {}", e);
+                            }),
+                            Err(_) => todo!(),
+                        };
                     }
                     StockEvent::DELETE => {
-                        println!("Deleting stock item");
+                        match event.get_original_event().as_json() {
+                            Ok(x) => delete(mdb_client, x).await.unwrap_or_else(|e| {
+                                eprintln!("Error while deleting stock item: {}", e);
+                            }),
+                            Err(_) => todo!(),
+                        };
                     }
                 }
             }
@@ -83,12 +94,24 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
     }
 }
 
-async fn create(mdb_client: &MDBClient, event: CreateStockItem) -> Result<(), Box<dyn Error>> {
+async fn create(mdb_client: &MDBClient, _event: CreateStockItem) -> Result<(), Box<dyn Error>> {
     let collection: mongodb::Collection<CreateStockItem> = mdb_client.database("stock").collection("stockItems");
-    let ct = collection.count_documents(doc! { "part_no": doc! { "$regex": &event.part_no } }, None).await?;
+    let ct = collection.count_documents(doc! { "part_no": doc! { "$regex": &_event.part_no } }, None).await?;
     if ct > 0 {
         return Err("Stock item already exists".into());
     }
-    collection.insert_one(&event, None).await?;
+    collection.insert_one(&_event, None).await?;
+    Ok(())
+}
+
+async fn add(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<dyn Error>> {
+    Ok(())
+}
+
+async fn set(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<dyn Error>> {
+    Ok(())
+}
+
+async fn delete(mdb_client: &MDBClient, _event: DeleteStockItem) -> Result<(), Box<dyn Error>> {
     Ok(())
 }

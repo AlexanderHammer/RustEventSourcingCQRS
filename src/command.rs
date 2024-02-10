@@ -10,8 +10,6 @@ use uuid::Uuid;
 use stock_event::StockEvent;
 use request::{CreateStockItem, AdjustStockItem, DeleteStockItem, CreateGenericEvent, GenericEvent};
 
-
-
 const STREAM_PREFIX: &str = "stockItem";
 const MAX_SIZE: usize = 262_144; // max payload size is 256k
 

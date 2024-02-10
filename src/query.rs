@@ -1,8 +1,5 @@
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use mongodb::{
-    bson::{doc, Document},
-    Client,
-};
+use mongodb::{bson::{doc, Document}, Client};
 
 #[get("/stock-item/{part_no}")]
 async fn get_stock_item(client: web::Data<Client>, path: web::Path<(String)>) -> impl Responder {
