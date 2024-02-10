@@ -70,31 +70,18 @@ async fn add_amount(
             let mut prev_total: u64 = 0;
             let original = event.get_original_event();
             match StockEvent::from_str(original.event_type.as_str()) {
-                Ok(StockEvent::ADD) => {
-                    match original.as_json::<AdjustStockItem>() {
-                        Ok(y) => {
-                            prev_total = y.total;
-                        }
-                        Err(_) => ()
-                    };
-                }
-                Ok(StockEvent::CREATE) => {
-                    match original.as_json::<CreateStockItem>() {
-                        Ok(y) => {
-                            prev_total = y.total;
-                        }
-                        Err(_) => ()
-                    };
-                }
+                Ok(StockEvent::ADD) => match original.as_json::<AdjustStockItem>() {
+                    Ok(event) => prev_total = event.total,
+                    Err(_) => ()
+                },
+                Ok(StockEvent::CREATE) => match original.as_json::<CreateStockItem>() {
+                    Ok(event) => prev_total = event.total,
+                    Err(_) => ()
+                },
                 _ => ()
             }
 
-            let command = AdjustStockItem {
-                part_no: part_no.clone(),
-                increment,
-                total: prev_total + increment,
-            };
-
+            let command = AdjustStockItem { part_no: part_no.clone(), increment, total: prev_total + increment };
             let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
             let options = AppendToStreamOptions::default().
                 expected_revision(ExpectedRevision::Exact(original.revision));
@@ -103,7 +90,7 @@ async fn add_amount(
             return match append_result.await {
                 Ok(_) => Ok(HttpResponse::Accepted()),
                 Err(_) => Err(error::ErrorExpectationFailed("Append failed")),
-            }
+            };
         }
     }
     Err(error::ErrorFailedDependency("Reading stream failed"))
