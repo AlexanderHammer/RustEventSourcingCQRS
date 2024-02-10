@@ -14,6 +14,13 @@ pub struct CreateStockItem {
 pub struct AdjustStockItem {
     pub part_no: String,
     pub count: u64,
+    pub prev_count: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SetStockItem {
+    pub part_no: String,
+    pub count: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

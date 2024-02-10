@@ -42,8 +42,8 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
 
     loop {
         let event = sub.next().await?;
-        let stream_id = event.get_original_stream_id();
-        let revision = event.get_original_event().revision;
+
+       print_event(&event);
 
         match StockEvent::from_str(event.get_original_event().event_type.as_str()) {
             Ok(event_type) => {
@@ -53,7 +53,7 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
                             Ok(x) => create(mdb_client, x).await.unwrap_or_else(|e| {
                                 eprintln!("Error while creating stock item: {}", e);
                             }),
-                            Err(_) => todo!(),
+                            Err(_) => print_event(&event),
                         };
                     }
                     StockEvent::ADD => {
@@ -61,7 +61,7 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
                             Ok(x) => add(mdb_client, x).await.unwrap_or_else(|e| {
                                 eprintln!("Error while adding amount to stock item: {}", e);
                             }),
-                            Err(_) => todo!(),
+                            Err(_) => print_event(&event),
                         };
                     }
                     StockEvent::SET => {
@@ -69,7 +69,7 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
                             Ok(x) => set(mdb_client, x).await.unwrap_or_else(|e| {
                                 eprintln!("Error while setting new amount for stock item: {}", e);
                             }),
-                            Err(_) => todo!(),
+                            Err(_) =>print_event(&event),
                         };
                     }
                     StockEvent::DELETE => {
@@ -77,18 +77,18 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
                             Ok(x) => delete(mdb_client, x).await.unwrap_or_else(|e| {
                                 eprintln!("Error while deleting stock item: {}", e);
                             }),
-                            Err(_) => todo!(),
+                            Err(_) => print_event(&event),
                         };
                     }
                 }
             }
             Err(_) => {
-                println!(
+                /*println!(
                     "Received event {}@{}, {:?}",
                     revision,
                     stream_id,
                     event.get_original_event()
-                );
+                );*/
             }
         };
     }
@@ -114,4 +114,13 @@ async fn set(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<
 
 async fn delete(mdb_client: &MDBClient, _event: DeleteStockItem) -> Result<(), Box<dyn Error>> {
     Ok(())
+}
+
+fn print_event(event: &eventstore::ResolvedEvent) {
+    println!(
+        "Received event {}@{}, {:?}",
+        event.get_original_event().revision,
+        event.get_original_event().stream_id,
+        event.get_original_event()
+    );
 }

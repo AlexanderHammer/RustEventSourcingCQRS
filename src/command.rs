@@ -2,10 +2,10 @@ mod stock_event;
 mod request;
 
 use actix_web::{delete, error, post, put, web, App, HttpResponse, HttpServer, Responder};
-use eventstore::{AppendToStreamOptions, Client, EventData};
-use futures::StreamExt;
-use serde::{Deserialize, Serialize};
+use eventstore::{AppendToStreamOptions, Client, EventData, ExpectedRevision, StreamPosition};
 use std::{error::Error};
+use std::str::FromStr;
+use futures::StreamExt;
 use uuid::Uuid;
 use stock_event::StockEvent;
 use request::{CreateStockItem, AdjustStockItem, DeleteStockItem, CreateGenericEvent, GenericEvent};
@@ -38,18 +38,63 @@ async fn add_amount(
     path: web::Path<(String, u64)>,
 ) -> impl Responder {
     let (part_no, count) = path.into_inner();
-    let command = AdjustStockItem { part_no, count };
-    let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
 
-    let options = AppendToStreamOptions::default()
-        .expected_revision(eventstore::ExpectedRevision::StreamExists);
+    let stream_name = format!("{}-{}", STREAM_PREFIX, part_no);
+    let read_stream_options = eventstore::ReadStreamOptions::default()
+        .position(StreamPosition::End)
+        .max_count(1);
 
-    let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
-    let append_result = es_client.append_to_stream(stream_name, &options, evt);
+    match es_client.read_stream(&stream_name, &read_stream_options).await {
+        Ok(mut stream) => {
+            match stream.next().await {
+                Ok(Some(event)) => {
+                    match event.get_original_event() {
+                        x => {
+                            let mut prev_count: u64 = 0;
 
-    match append_result.await {
-        Ok(_) => return Ok(HttpResponse::Accepted()),
-        Err(_) => Err(error::ErrorExpectationFailed("Who knows")),
+                            match StockEvent::from_str(x.event_type.as_str()) {
+                                Ok(StockEvent::ADD) => {
+                                   match x.as_json::<AdjustStockItem>(){
+                                       Ok(y) => {
+                                           prev_count = y.count;
+                                       },
+                                       Err(_) => return Ok(HttpResponse::Conflict())
+                                   };
+                                },
+                                Ok(StockEvent::CREATE) => {
+                                    match x.as_json::<CreateStockItem>(){
+                                        Ok(y) => {
+                                            prev_count = y.count;
+                                        },
+                                        Err(_) => return Ok(HttpResponse::Conflict())
+                                    };
+                                },
+                                _ => return Ok(HttpResponse::Forbidden())
+                            }
+                            let revision = event.get_original_event().revision + 1;
+                            let new_count = prev_count + count;
+                            let command = AdjustStockItem {
+                                part_no,
+                                count: new_count,
+                                prev_count,
+                            };
+                            let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
+                            let options = AppendToStreamOptions::default();
+                            let append_result = es_client.append_to_stream(stream_name, &options, evt);
+                            match append_result.await {
+                                Ok(_) => return Ok(HttpResponse::Accepted()),
+                                Err(_) => Err(error::ErrorExpectationFailed("Failed to append event")),
+                            }
+                        }
+                    }
+                }
+                Ok(None) => {
+                    return Err(error::ErrorExpectationFailed("Could not find stock item event"));
+                }
+                _ => return Ok(HttpResponse::Forbidden())
+            }
+        },
+        Err(_) => return Err(error::ErrorExpectationFailed("Could not read stream")),
     }
 }
 
@@ -59,7 +104,7 @@ async fn set_amount(
     path: web::Path<(String, u64)>,
 ) -> impl Responder {
     let (part_no, count) = path.into_inner();
-    let command = AdjustStockItem { part_no, count };
+    let command = AdjustStockItem { part_no, count, prev_count: 0 };
     let evt = EventData::json(StockEvent::SET.to_string(), &command)?.id(Uuid::new_v4());
 
     let options = AppendToStreamOptions::default()
