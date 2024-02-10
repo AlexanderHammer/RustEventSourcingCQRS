@@ -7,14 +7,14 @@ pub struct CreateStockItem {
     pub name: String,
     pub description: String,
     pub category: String,
-    pub count: u64,
+    pub total: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AdjustStockItem {
     pub part_no: String,
-    pub count: u64,
-    pub prev_count: u64,
+    pub increment: u64,
+    pub total: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

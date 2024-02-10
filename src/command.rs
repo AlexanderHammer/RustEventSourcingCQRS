@@ -32,12 +32,12 @@ async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) ->
     }
 }
 
-#[post("/stock-item/add/{part_no}/{count}")]
+#[post("/stock-item/add/{part_no}/{increment}")]
 async fn add_amount(
     es_client: web::Data<Client>,
     path: web::Path<(String, u64)>,
 ) -> impl Responder {
-    let (part_no, count) = path.into_inner();
+    let (part_no, increment) = path.into_inner();
 
     let stream_name = format!("{}-{}", STREAM_PREFIX, part_no);
     let read_stream_options = eventstore::ReadStreamOptions::default()
@@ -50,13 +50,13 @@ async fn add_amount(
                 Ok(Some(event)) => {
                     match event.get_original_event() {
                         x => {
-                            let mut prev_count: u64 = 0;
+                            let mut prev_total: u64 = 0;
 
                             match StockEvent::from_str(x.event_type.as_str()) {
                                 Ok(StockEvent::ADD) => {
                                    match x.as_json::<AdjustStockItem>(){
                                        Ok(y) => {
-                                           prev_count = y.count;
+                                           prev_total = y.total;
                                        },
                                        Err(_) => return Ok(HttpResponse::Conflict())
                                    };
@@ -64,22 +64,22 @@ async fn add_amount(
                                 Ok(StockEvent::CREATE) => {
                                     match x.as_json::<CreateStockItem>(){
                                         Ok(y) => {
-                                            prev_count = y.count;
+                                            prev_total = y.total;
                                         },
                                         Err(_) => return Ok(HttpResponse::Conflict())
                                     };
                                 },
                                 _ => return Ok(HttpResponse::Forbidden())
                             }
-                            let revision = event.get_original_event().revision + 1;
-                            let new_count = prev_count + count;
+                            let new_total = prev_total + increment;
                             let command = AdjustStockItem {
-                                part_no,
-                                count: new_count,
-                                prev_count,
+                                part_no: part_no,
+                                increment,
+                                total: new_total,
                             };
                             let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
-                            let options = AppendToStreamOptions::default();
+                            let options = AppendToStreamOptions::default().
+                                expected_revision(ExpectedRevision::Exact(event.get_original_event().revision));
                             let append_result = es_client.append_to_stream(stream_name, &options, evt);
                             match append_result.await {
                                 Ok(_) => return Ok(HttpResponse::Accepted()),
@@ -98,13 +98,13 @@ async fn add_amount(
     }
 }
 
-#[put("/stock-item/set/{part_no}/{count}")]
+#[put("/stock-item/set/{part_no}/{increment}")]
 async fn set_amount(
     es_client: web::Data<Client>,
     path: web::Path<(String, u64)>,
 ) -> impl Responder {
-    let (part_no, count) = path.into_inner();
-    let command = AdjustStockItem { part_no, count, prev_count: 0 };
+    let (part_no, increment) = path.into_inner();
+    let command = AdjustStockItem { part_no, increment, total: 0 };
     let evt = EventData::json(StockEvent::SET.to_string(), &command)?.id(Uuid::new_v4());
 
     let options = AppendToStreamOptions::default()
