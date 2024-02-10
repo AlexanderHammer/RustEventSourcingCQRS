@@ -4,18 +4,19 @@ use mongodb::{
     Client,
 };
 
-#[get("/")]
-async fn get_movie(client: web::Data<Client>) -> impl Responder {
+#[get("/stock-item/{part_no}")]
+async fn get_stock_item(client: web::Data<Client>, path: web::Path<(String)>) -> impl Responder {
+    let (part_no) = path.into_inner();
     let collection: mongodb::Collection<Document> =
-        client.database("sample_mflix").collection("movies");
-    // Find a movie based on the title value
-    let my_movie = collection
-        .find_one(doc! { "title": "The Perils of Pauline" }, None)
+        client.database("stock").collection("stockItems");
+    let stock_item = collection
+        .find_one(doc! { "part_no": part_no }, None)
         .await;
-    // Print the document
-    println!("Found a movie:\n{:#?}", my_movie);
 
-    HttpResponse::Ok().body("Hello world!")
+    match stock_item.unwrap () {
+        Some (x) =>  HttpResponse::Ok().body(x.to_string()),
+        None => HttpResponse::NotFound().body("Stock item not found"),
+    }
 }
 
 async fn manual_hello() -> impl Responder {
@@ -30,7 +31,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(client.clone()))
-            .service(get_movie)
+            .service(get_stock_item)
             .route("/hey", web::get().to(manual_hello))
     })
     .bind(("localhost", 8080))?
