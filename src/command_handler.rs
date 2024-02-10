@@ -43,7 +43,7 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
     loop {
         let event = sub.next().await?;
 
-       print_event(&event);
+        print_event(&event);
 
         match StockEvent::from_str(event.get_original_event().event_type.as_str()) {
             Ok(event_type) => {
@@ -69,7 +69,7 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
                             Ok(x) => set(mdb_client, x).await.unwrap_or_else(|e| {
                                 eprintln!("Error while setting new amount for stock item: {}", e);
                             }),
-                            Err(_) =>print_event(&event),
+                            Err(_) => print_event(&event),
                         };
                     }
                     StockEvent::DELETE => {

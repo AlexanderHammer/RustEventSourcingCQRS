@@ -54,10 +54,7 @@ async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) ->
 }
 
 #[post("/stock-item/add/{part_no}/{increment}")]
-async fn add_amount(
-    es_client: web::Data<Client>,
-    path: web::Path<(String, u64)>,
-) -> impl Responder {
+async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>) -> impl Responder {
     let (part_no, increment) = path.into_inner();
     let stream_name = format!("{}-{}", STREAM_PREFIX, part_no);
     let read_stream_options = eventstore::ReadStreamOptions::default()
@@ -97,10 +94,7 @@ async fn add_amount(
 }
 
 #[put("/stock-item/set/{part_no}/{increment}")]
-async fn set_amount(
-    es_client: web::Data<Client>,
-    path: web::Path<(String, u64)>,
-) -> impl Responder {
+async fn set_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>) -> impl Responder {
     let (part_no, increment) = path.into_inner();
     let command = AdjustStockItem { part_no, increment, total: 0 };
     let evt = EventData::json(StockEvent::SET.to_string(), &command)?.id(Uuid::new_v4());
@@ -118,10 +112,7 @@ async fn set_amount(
 }
 
 #[delete("/stock-item/{part_no}")]
-async fn delete_stock_item(
-    es_client: web::Data<Client>,
-    path: web::Path<String>,
-) -> impl Responder {
+async fn delete_stock_item(es_client: web::Data<Client>, path: web::Path<String>) -> impl Responder {
     let part_no = path.into_inner();
     let command = DeleteStockItem { part_no };
     let evt = EventData::json(StockEvent::DELETE.to_string(), &command)?.id(Uuid::new_v4());

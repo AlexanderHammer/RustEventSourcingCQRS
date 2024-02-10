@@ -12,9 +12,9 @@ async fn main() -> std::io::Result<()> {
             .service(get_stock_item)
             .route("/hey", web::get().to(manual_hello))
     })
-    .bind(("localhost", 8080))?
-    .run()
-    .await
+        .bind(("localhost", 8080))?
+        .run()
+        .await
 }
 
 #[get("/stock-item/{part_no}")]
@@ -26,8 +26,8 @@ async fn get_stock_item(client: web::Data<Client>, path: web::Path<(String)>) ->
         .find_one(doc! { "part_no": part_no }, None)
         .await;
 
-    match stock_item.unwrap () {
-        Some (x) =>  HttpResponse::Ok().body(x.to_string()),
+    match stock_item.unwrap() {
+        Some(x) => HttpResponse::Ok().body(x.to_string()),
         None => HttpResponse::NotFound().body("Stock item not found"),
     }
 }
