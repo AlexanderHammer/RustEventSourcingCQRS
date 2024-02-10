@@ -38,64 +38,54 @@ async fn add_amount(
     path: web::Path<(String, u64)>,
 ) -> impl Responder {
     let (part_no, increment) = path.into_inner();
-
     let stream_name = format!("{}-{}", STREAM_PREFIX, part_no);
     let read_stream_options = eventstore::ReadStreamOptions::default()
         .position(StreamPosition::End)
         .max_count(1);
 
-    match es_client.read_stream(&stream_name, &read_stream_options).await {
-        Ok(mut stream) => {
-            match stream.next().await {
-                Ok(Some(event)) => {
-                    match event.get_original_event() {
-                        x => {
-                            let mut prev_total: u64 = 0;
-
-                            match StockEvent::from_str(x.event_type.as_str()) {
-                                Ok(StockEvent::ADD) => {
-                                   match x.as_json::<AdjustStockItem>(){
-                                       Ok(y) => {
-                                           prev_total = y.total;
-                                       },
-                                       Err(_) => return Ok(HttpResponse::Conflict())
-                                   };
-                                },
-                                Ok(StockEvent::CREATE) => {
-                                    match x.as_json::<CreateStockItem>(){
-                                        Ok(y) => {
-                                            prev_total = y.total;
-                                        },
-                                        Err(_) => return Ok(HttpResponse::Conflict())
-                                    };
-                                },
-                                _ => return Ok(HttpResponse::Forbidden())
-                            }
-                            let new_total = prev_total + increment;
-                            let command = AdjustStockItem {
-                                part_no: part_no,
-                                increment,
-                                total: new_total,
-                            };
-                            let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
-                            let options = AppendToStreamOptions::default().
-                                expected_revision(ExpectedRevision::Exact(event.get_original_event().revision));
-                            let append_result = es_client.append_to_stream(stream_name, &options, evt);
-                            match append_result.await {
-                                Ok(_) => return Ok(HttpResponse::Accepted()),
-                                Err(_) => Err(error::ErrorExpectationFailed("Failed to append event")),
-                            }
+    if let Ok(mut stream) = es_client.read_stream(&stream_name, &read_stream_options).await {
+        while let Ok(Some(event)) = stream.next().await
+        {
+            let mut prev_total: u64 = 0;
+            let original = event.get_original_event();
+            match StockEvent::from_str(original.event_type.as_str()) {
+                Ok(StockEvent::ADD) => {
+                    match original.as_json::<AdjustStockItem>() {
+                        Ok(y) => {
+                            prev_total = y.total;
                         }
-                    }
+                        Err(_) => ()
+                    };
                 }
-                Ok(None) => {
-                    return Err(error::ErrorExpectationFailed("Could not find stock item event"));
+                Ok(StockEvent::CREATE) => {
+                    match original.as_json::<CreateStockItem>() {
+                        Ok(y) => {
+                            prev_total = y.total;
+                        }
+                        Err(_) => ()
+                    };
                 }
-                _ => return Ok(HttpResponse::Forbidden())
+                _ => ()
             }
-        },
-        Err(_) => return Err(error::ErrorExpectationFailed("Could not read stream")),
+
+            let command = AdjustStockItem {
+                part_no: part_no.clone(),
+                increment,
+                total: prev_total + increment,
+            };
+
+            let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
+            let options = AppendToStreamOptions::default().
+                expected_revision(ExpectedRevision::Exact(original.revision));
+            let append_result = es_client.append_to_stream(&stream_name, &options, evt);
+
+            return match append_result.await {
+                Ok(_) => Ok(HttpResponse::Accepted()),
+                Err(_) => Err(error::ErrorExpectationFailed("Append failed")),
+            }
+        }
     }
+    Err(error::ErrorFailedDependency("Reading stream failed"))
 }
 
 #[put("/stock-item/set/{part_no}/{increment}")]
