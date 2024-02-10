@@ -4,12 +4,8 @@ mod request;
 use eventstore::{Client as ESClient, RetryOptions, SubscribeToAllOptions, SubscriptionFilter};
 use std::error::Error;
 use std::str::FromStr;
-use mongodb::{
-    bson::{doc, Document},
-    Client as MDBClient,
-};
+use mongodb::{bson::{doc}, Client as MDBClient};
 use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
-use serde::{Deserialize, Serialize};
 use stock_event::StockEvent;
 use request::{CreateStockItem, AdjustStockItem, DeleteStockItem, CreateGenericEvent, GenericEvent};
 
@@ -52,9 +48,7 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
         let stream_id = event.get_original_stream_id();
         let revision = event.get_original_event().revision;
 
-        let parse_result = StockEvent::from_str(event.get_original_event().event_type.as_str());
-
-        match parse_result {
+        match StockEvent::from_str(event.get_original_event().event_type.as_str()) {
             Ok(event_type) => {
                 match event_type {
                     StockEvent::CREATE => {
@@ -92,7 +86,7 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
 async fn create(mdb_client: &MDBClient, event: CreateStockItem) -> Result<(), Box<dyn Error>> {
     let collection: mongodb::Collection<CreateStockItem> = mdb_client.database("stock").collection("stockItems");
     let ct = collection.count_documents(doc! { "part_no": doc! { "$regex": &event.part_no } }, None).await?;
-    if(ct > 0) {
+    if ct > 0 {
         return Err("Stock item already exists".into());
     }
     collection.insert_one(&event, None).await?;
