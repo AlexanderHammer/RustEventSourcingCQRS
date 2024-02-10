@@ -3,7 +3,7 @@ mod request;
 
 use actix_web::{delete, error, post, put, web, App, HttpResponse, HttpServer, Responder};
 use eventstore::{AppendToStreamOptions, Client, EventData, ExpectedRevision, StreamPosition};
-use std::{error::Error};
+use std::error::Error;
 use std::str::FromStr;
 use futures::StreamExt;
 use uuid::Uuid;
@@ -13,6 +13,27 @@ use request::{CreateStockItem, AdjustStockItem, DeleteStockItem, CreateGenericEv
 const STREAM_PREFIX: &str = "stockItem";
 const MAX_SIZE: usize = 262_144; // max payload size is 256k
 
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    let settings = "esdb://admin:changeit@localhost:2113?tls=false"
+        .parse()
+        .unwrap();
+    let es_client = Client::new(settings).unwrap();
+
+    HttpServer::new(move || {
+        App::new()
+            .service(post_stock_item)
+            .service(post_generic_event)
+            .service(add_amount)
+            .service(delete_stock_item)
+            .service(set_amount)
+            .app_data(web::Data::new(es_client.clone()))
+    })
+        .bind(("localhost", 8081))?
+        .run()
+        .await
+}
 
 #[post("/stock-item")]
 async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) -> impl Responder {
@@ -170,25 +191,4 @@ async fn payload_to_bytes_mut(mut payload: web::Payload) -> Result<web::BytesMut
         body.extend_from_slice(&chunk);
     }
     Ok(body)
-}
-
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    let settings = "esdb://admin:changeit@localhost:2113?tls=false"
-        .parse()
-        .unwrap();
-    let es_client = Client::new(settings).unwrap();
-
-    HttpServer::new(move || {
-        App::new()
-            .service(post_stock_item)
-            .service(post_generic_event)
-            .service(add_amount)
-            .service(delete_stock_item)
-            .service(set_amount)
-            .app_data(web::Data::new(es_client.clone()))
-    })
-        .bind(("localhost", 8081))?
-        .run()
-        .await
 }
