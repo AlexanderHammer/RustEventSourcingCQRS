@@ -42,7 +42,7 @@ async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) ->
     let evt = EventData::json(StockEvent::CREATE.to_string(), &command)?.id(Uuid::new_v4());
 
     let options =
-        AppendToStreamOptions::default().expected_revision(eventstore::ExpectedRevision::NoStream);
+        AppendToStreamOptions::default().expected_revision(ExpectedRevision::NoStream);
 
     let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
@@ -109,7 +109,7 @@ async fn set_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
     let evt = EventData::json(StockEvent::SET.to_string(), &command)?.id(Uuid::new_v4());
 
     let options = AppendToStreamOptions::default()
-        .expected_revision(eventstore::ExpectedRevision::StreamExists);
+        .expected_revision(ExpectedRevision::StreamExists);
 
     let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
@@ -127,7 +127,7 @@ async fn delete_stock_item(es_client: web::Data<Client>, path: web::Path<String>
     let evt = EventData::json(StockEvent::DELETE.to_string(), &command)?.id(Uuid::new_v4());
 
     let options = AppendToStreamOptions::default()
-        .expected_revision(eventstore::ExpectedRevision::StreamExists);
+        .expected_revision(ExpectedRevision::StreamExists);
 
     let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
