@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,13 +23,14 @@ impl std::str::FromStr for StockEvent {
     }
 }
 
-impl ToString for StockEvent {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for StockEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             StockEvent::ADD => "add-stock-item",
             StockEvent::CREATE => "create-stock-item",
             StockEvent::SET => "set-stock-item",
             StockEvent::DELETE => "delete-stock-item",
-        }.to_string()
+        };
+        write!(f, "{}", str)
     }
 }
