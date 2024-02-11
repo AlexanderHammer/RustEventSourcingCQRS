@@ -64,20 +64,20 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
     if let Ok(mut stream) = es_client.read_stream(&stream_name, &read_stream_options).await {
         while let Ok(Some(event)) = stream.next().await
         {
-            let mut _prev_total: u64 = 0;
+            let mut _new_total: u64 = 0;
             let recorded_event = event.get_original_event();
             if let Ok(event_type) = StockEvent::from_str(recorded_event.event_type.as_str()) {
                 match event_type {
                     StockEvent::ADD => match recorded_event.as_json::<AdjustStockItem>() {
-                        Ok(event) => _prev_total = event.total,
+                        Ok(event) => _new_total = event.total + increment,
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     }
                     StockEvent::CREATE => match recorded_event.as_json::<CreateStockItem>() {
-                        Ok(event) => _prev_total = event.total,
+                        Ok(event) => _new_total = event.total + increment,
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::SET => match recorded_event.as_json::<AdjustStockItem>() {
-                        Ok(event) => _prev_total = event.total,
+                        Ok(event) => _new_total = event.total + increment,
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::DELETE => {
@@ -87,7 +87,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
             } else {
                 return Err(error::ErrorExpectationFailed("Unknown event type"));
             }
-            let command = AdjustStockItem { part_no: part_no.clone(), increment, total: _prev_total + increment };
+            let command = AdjustStockItem { part_no: part_no.clone(), increment, total: _new_total };
             let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
             let options = AppendToStreamOptions::default().
                 expected_revision(ExpectedRevision::Exact(recorded_event.revision));
