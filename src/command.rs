@@ -68,20 +68,17 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
             let recorded_event = event.get_original_event();
             if let Ok(event_type) = StockEvent::from_str(recorded_event.event_type.as_str()) {
                 match event_type {
-                    StockEvent::ADD => if let Ok(event) = recorded_event.as_json::<AdjustStockItem>() {
-                        _prev_total = event.total
-                    } else {
-                        return Err(error::ErrorExpectationFailed("Parsing AdjustStockItem failed"));
+                    StockEvent::ADD => match recorded_event.as_json::<AdjustStockItem>() {
+                        Ok(event) => _prev_total = event.total,
+                        Err(_) => return Err(error::ErrorExpectationFailed("Parsing ADJUST failed")),
+                    }
+                    StockEvent::CREATE => match recorded_event.as_json::<CreateStockItem>() {
+                        Ok(event) => _prev_total = event.total,
+                        Err(_) => return Err(error::ErrorExpectationFailed("Parsing CREATE failed")),
                     },
-                    StockEvent::CREATE => if let Ok(event) = recorded_event.as_json::<CreateStockItem>() {
-                        _prev_total = event.total
-                    } else {
-                        return Err(error::ErrorExpectationFailed("Parsing CreateStockItem failed"));
-                    },
-                    StockEvent::SET => if let Ok(event) = recorded_event.as_json::<AdjustStockItem>() {
-                        _prev_total = event.total
-                    } else {
-                        return Err(error::ErrorExpectationFailed("Parsing CreateStockItem failed"));
+                    StockEvent::SET => match recorded_event.as_json::<AdjustStockItem>() {
+                        Ok(event) => _prev_total = event.total,
+                        Err(_) => return Err(error::ErrorExpectationFailed("Parsing SET failed")),
                     },
                     StockEvent::DELETE => {
                         return Err(error::ErrorExpectationFailed("Stock item deleted"));
