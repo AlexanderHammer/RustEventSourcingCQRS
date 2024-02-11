@@ -70,15 +70,15 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
                 match event_type {
                     StockEvent::ADD => match recorded_event.as_json::<AdjustStockItem>() {
                         Ok(event) => _prev_total = event.total,
-                        Err(_) => return Err(error::ErrorExpectationFailed("Parsing ADJUST failed")),
+                        Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     }
                     StockEvent::CREATE => match recorded_event.as_json::<CreateStockItem>() {
                         Ok(event) => _prev_total = event.total,
-                        Err(_) => return Err(error::ErrorExpectationFailed("Parsing CREATE failed")),
+                        Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::SET => match recorded_event.as_json::<AdjustStockItem>() {
                         Ok(event) => _prev_total = event.total,
-                        Err(_) => return Err(error::ErrorExpectationFailed("Parsing SET failed")),
+                        Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::DELETE => {
                         return Err(error::ErrorExpectationFailed("Stock item deleted"));
