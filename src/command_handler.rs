@@ -48,19 +48,23 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
         if let Ok(event_type) = StockEvent::from_str(event.get_original_event().event_type.as_str()) {
             match event_type {
                 StockEvent::CREATE => match event.get_original_event().as_json() {
-                    Ok(x) => create(mdb_client, x).await.unwrap_or_else(|e| eprintln!("Error while creating stock item: {}", e)),
+                    Ok(x) => create(mdb_client, x).await.unwrap_or_else(
+                        |e| eprintln!("Error while creating stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::ADD => match event.get_original_event().as_json() {
-                    Ok(x) => add(mdb_client, x).await.unwrap_or_else(|e| eprintln!("Error while adding amount to stock item: {}", e)),
+                    Ok(x) => add(mdb_client, x).await.unwrap_or_else(
+                        |e| eprintln!("Error while adding amount to stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::SET => match event.get_original_event().as_json() {
-                    Ok(x) => set(mdb_client, x).await.unwrap_or_else(|e| eprintln!("Error while setting new amount for stock item: {}", e)),
+                    Ok(x) => set(mdb_client, x).await.unwrap_or_else(
+                        |e| eprintln!("Error while setting new amount for stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::DELETE => match event.get_original_event().as_json() {
-                    Ok(x) => delete(mdb_client, x).await.unwrap_or_else(|e| eprintln!("Error while deleting stock item: {}", e)),
+                    Ok(x) => delete(mdb_client, x).await.unwrap_or_else(
+                        |e| eprintln!("Error while deleting stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
             }
