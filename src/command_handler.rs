@@ -4,7 +4,6 @@ mod request;
 use eventstore::{Client as ESClient, DeleteStreamOptions, ResolvedEvent, RetryOptions, SubscribeToAllOptions, SubscriptionFilter};
 use std::error::Error;
 use std::str::FromStr;
-use eventstore::ExpectedRevision::StreamExists;
 use mongodb::{bson::{doc}, Client as MDBClient};
 use mongodb::bson::Document;
 use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
@@ -107,7 +106,7 @@ async fn delete(es_client: &ESClient, mdb_client: &MDBClient, _event: DeleteStoc
     Ok(())
 }
 
-fn print_event(event: &eventstore::ResolvedEvent) {
+fn print_event(event: &ResolvedEvent) {
     println!(
         "Received event {}@{}, {:?}",
         event.get_original_event().revision,
