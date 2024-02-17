@@ -87,7 +87,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
             } else {
                 return Err(error::ErrorExpectationFailed("Unknown event type"));
             }
-            let command = AdjustStockItem { part_no: part_no, increment, total: _new_total };
+            let command = AdjustStockItem { part_no, increment, total: _new_total };
             let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
             let options = AppendToStreamOptions::default().
                 expected_revision(ExpectedRevision::Exact(recorded_event.revision));
