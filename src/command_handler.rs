@@ -5,6 +5,7 @@ use eventstore::{Client as ESClient, RetryOptions, SubscribeToAllOptions, Subscr
 use std::error::Error;
 use std::str::FromStr;
 use mongodb::{bson::{doc}, Client as MDBClient};
+use mongodb::bson::Document;
 use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
 use stock_event::StockEvent;
 use request::{CreateStockItem, AdjustStockItem, DeleteStockItem};
@@ -78,6 +79,11 @@ async fn create(mdb_client: &MDBClient, _event: CreateStockItem) -> Result<(), B
 }
 
 async fn add(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<dyn Error>> {
+    let collection: mongodb::Collection<Document> = mdb_client.database("stock").collection("stockItems");
+    let filter = doc! { "part_no": &_event.part_no };
+    let update = doc! { "$set": doc! {"total": &_event.total} };
+    let res = collection.update_one(filter, update, None).await?;
+    println!("Updated documents: {}", res.modified_count);
     Ok(())
 }
 

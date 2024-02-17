@@ -54,7 +54,7 @@ async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) ->
 }
 
 #[post("/stock-item/add/{part_no}/{increment}")]
-async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>) -> impl Responder {
+async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>) -> impl Responder {
     let (part_no, increment) = path.into_inner();
     let stream_name = format!("{}-{}", STREAM_PREFIX, &part_no);
     let read_stream_options = eventstore::ReadStreamOptions::default()
@@ -64,7 +64,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
     if let Ok(mut stream) = es_client.read_stream(&stream_name, &read_stream_options).await {
         while let Ok(Some(event)) = stream.next().await
         {
-            let mut _new_total: u64 = 0;
+            let mut _new_total: f64 = 0.0;
             let recorded_event = event.get_original_event();
             if let Ok(event_type) = StockEvent::from_str(recorded_event.event_type.as_str()) {
                 match event_type {
@@ -102,10 +102,10 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
     Err(error::ErrorFailedDependency("Reading stream failed"))
 }
 
-#[put("/stock-item/set/{part_no}/{increment}")]
-async fn set_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>) -> impl Responder {
-    let (part_no, increment) = path.into_inner();
-    let command = AdjustStockItem { part_no, increment, total: 0 };
+#[put("/stock-item/set/{part_no}/{set_amount}")]
+async fn set_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>) -> impl Responder {
+    let (part_no, set_amount) = path.into_inner();
+    let command = AdjustStockItem { part_no, increment: set_amount, total: set_amount };
     let evt = EventData::json(StockEvent::SET.to_string(), &command)?.id(Uuid::new_v4());
 
     let options = AppendToStreamOptions::default()
