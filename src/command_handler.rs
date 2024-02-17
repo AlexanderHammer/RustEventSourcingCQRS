@@ -103,7 +103,7 @@ async fn delete(es_client: &ESClient, mdb_client: &MDBClient, _event: DeleteStoc
     let collection: mongodb::Collection<Document> = mdb_client.database("stock").collection("stockItems");
     let filter = doc! { "part_no": &_event.part_no };
     collection.delete_one(filter, None).await?;
-    es_client.delete_stream(stream_name, &DeleteStreamOptions::default().expected_revision(StreamExists)).await?;
+    es_client.delete_stream(stream_name, &DeleteStreamOptions::default()).await?;
     Ok(())
 }
 
