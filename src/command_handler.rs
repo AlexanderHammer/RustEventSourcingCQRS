@@ -78,7 +78,8 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
 
 async fn create(mdb_client: &MDBClient, _event: CreateStockItem) -> Result<(), Box<dyn Error>> {
     let collection: mongodb::Collection<CreateStockItem> = mdb_client.database(DATABASE).collection(COLLECTION);
-    let ct = collection.count_documents(doc! { D_ID: doc! { "$regex": &_event.part_no } }, None).await?;
+    let filter = doc! { D_ID: doc! { "$regex": &_event.part_no } };
+    let ct = collection.count_documents(filter, None).await?;
     if ct > 0 {
         return Err("Stock item already exists".into());
     }
