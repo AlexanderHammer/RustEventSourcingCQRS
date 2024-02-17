@@ -77,7 +77,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::SET => match recorded_event.as_json::<AdjustStockItem>() {
-                        Ok(event) => _new_total = increment,
+                        Ok(_) => _new_total = increment,
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::DELETE => {
