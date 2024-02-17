@@ -1,9 +1,10 @@
 mod stock_event;
 mod request;
 
-use eventstore::{Client as ESClient, RetryOptions, SubscribeToAllOptions, SubscriptionFilter};
+use eventstore::{Client as ESClient, DeleteStreamOptions, ResolvedEvent, RetryOptions, SubscribeToAllOptions, SubscriptionFilter};
 use std::error::Error;
 use std::str::FromStr;
+use eventstore::ExpectedRevision::StreamExists;
 use mongodb::{bson::{doc}, Client as MDBClient};
 use mongodb::bson::Document;
 use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
@@ -63,7 +64,7 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
                     Err(_) => print_event(&event),
                 },
                 StockEvent::DELETE => match event.get_original_event().as_json() {
-                    Ok(x) => delete(mdb_client, x).await.unwrap_or_else(
+                    Ok(x) => delete(es_client, mdb_client, x, event.get_original_stream_id()).await.unwrap_or_else(
                         |e| eprintln!("Error while deleting stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
@@ -98,10 +99,11 @@ async fn set(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<
     Ok(())
 }
 
-async fn delete(mdb_client: &MDBClient, _event: DeleteStockItem) -> Result<(), Box<dyn Error>> {
+async fn delete(es_client: &ESClient, mdb_client: &MDBClient, _event: DeleteStockItem, stream_name: &str) -> Result<(), Box<dyn Error>> {
     let collection: mongodb::Collection<Document> = mdb_client.database("stock").collection("stockItems");
     let filter = doc! { "part_no": &_event.part_no };
     collection.delete_one(filter, None).await?;
+    es_client.delete_stream(stream_name, &DeleteStreamOptions::default().expected_revision(StreamExists)).await?;
     Ok(())
 }
 
