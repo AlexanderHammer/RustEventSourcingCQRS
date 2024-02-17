@@ -130,10 +130,7 @@ async fn delete_stock_item(es_client: web::Data<Client>, path: web::Path<String>
     let part_no = path.into_inner();
     let command = DeleteStockItem { part_no };
     let evt = EventData::json(StockEvent::DELETE.to_string(), &command)?.id(Uuid::new_v4());
-
-    let options = AppendToStreamOptions::default()
-        .expected_revision(ExpectedRevision::StreamExists);
-
+    let options = AppendToStreamOptions::default();
     let stream_name = format!("{}-{}", STREAM_PREFIX, command.part_no);
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
