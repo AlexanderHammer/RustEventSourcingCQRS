@@ -56,7 +56,7 @@ async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) ->
 #[post("/stock-item/add/{part_no}/{increment}")]
 async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>) -> impl Responder {
     let (part_no, increment) = path.into_inner();
-    let stream_name = format!("{}-{}", STREAM_PREFIX, part_no);
+    let stream_name = format!("{}-{}", STREAM_PREFIX, &part_no);
     let read_stream_options = eventstore::ReadStreamOptions::default()
         .position(StreamPosition::End)
         .max_count(1);
@@ -87,7 +87,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, u64)>
             } else {
                 return Err(error::ErrorExpectationFailed("Unknown event type"));
             }
-            let command = AdjustStockItem { part_no: part_no.clone(), increment, total: _new_total };
+            let command = AdjustStockItem { part_no: part_no, increment, total: _new_total };
             let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
             let options = AppendToStreamOptions::default().
                 expected_revision(ExpectedRevision::Exact(recorded_event.revision));
