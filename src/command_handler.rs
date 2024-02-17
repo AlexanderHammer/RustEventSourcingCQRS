@@ -14,11 +14,12 @@ const STREAM_PREFIX: &str = "stockItem";
 const DATABASE: &str = "stock";
 const COLLECTION: &str = "stockItems";
 const D_ID: &str = "part_no";
+const MONGODB_URI: &str = "mongodb://localhost:27017";
 
 #[tokio::main]
 async fn main() {
     // Create a new client options object and parse the MongoDB URI
-    let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| "mongodb://localhost:27017".into());
+    let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| MONGODB_URI.into());
     let mut client_options = ClientOptions::parse_async(uri).await.unwrap();
     // Set the server_api field of the client_options object to Stable API version 1
     let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
