@@ -82,16 +82,22 @@ async fn add(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<
     let collection: mongodb::Collection<Document> = mdb_client.database("stock").collection("stockItems");
     let filter = doc! { "part_no": &_event.part_no };
     let update = doc! { "$set": doc! {"total": &_event.total} };
-    let res = collection.update_one(filter, update, None).await?;
-    println!("Updated documents: {}", res.modified_count);
+    collection.update_one(filter, update, None).await?;
     Ok(())
 }
 
 async fn set(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<dyn Error>> {
+    let collection: mongodb::Collection<Document> = mdb_client.database("stock").collection("stockItems");
+    let filter = doc! { "part_no": &_event.part_no };
+    let update = doc! { "$set": doc! {"total": &_event.total} };
+    collection.update_one(filter, update, None).await?;
     Ok(())
 }
 
 async fn delete(mdb_client: &MDBClient, _event: DeleteStockItem) -> Result<(), Box<dyn Error>> {
+    let collection: mongodb::Collection<Document> = mdb_client.database("stock").collection("stockItems");
+    let filter = doc! { "part_no": &_event.part_no };
+    collection.delete_one(filter, None).await?;
     Ok(())
 }
 
