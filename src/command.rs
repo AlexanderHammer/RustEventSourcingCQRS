@@ -77,7 +77,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::SET => match recorded_event.as_json::<AdjustStockItem>() {
-                        Ok(event) => _new_total = event.total + increment,
+                        Ok(event) => _new_total = increment,
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::DELETE => {
@@ -87,6 +87,11 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
             } else {
                 return Err(error::ErrorExpectationFailed("Unknown event type"));
             }
+
+            if _new_total < 0.0 {
+                return Err(error::ErrorExpectationFailed("New total is less than 0"));
+            }
+
             let command = AdjustStockItem { part_no, increment, total: _new_total };
             let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
             let options = AppendToStreamOptions::default().
