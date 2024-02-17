@@ -43,7 +43,6 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
 
     loop {
         let event = sub.next().await?;
-        print_event(&event);
 
         if let Ok(event_type) = StockEvent::from_str(event.get_original_event().event_type.as_str()) {
             match event_type {
@@ -108,7 +107,7 @@ async fn delete(es_client: &ESClient, mdb_client: &MDBClient, _event: DeleteStoc
 
 fn print_event(event: &ResolvedEvent) {
     println!(
-        "Received event {}@{}, {:?}",
+        "Errored received event {}@{}, {:?}",
         event.get_original_event().revision,
         event.get_original_event().stream_id,
         event.get_original_event()
