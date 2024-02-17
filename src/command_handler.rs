@@ -10,6 +10,8 @@ use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
 use stock_event::StockEvent;
 use request::{CreateStockItem, AdjustStockItem, DeleteStockItem};
 
+const STREAM_PREFIX: &str = "stockItem";
+
 #[tokio::main]
 async fn main() {
     // Create a new client options object and parse the MongoDB URI
@@ -34,7 +36,7 @@ async fn main() {
 async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result<(), Box<dyn Error>> {
     let retry = RetryOptions::default().retry_forever();
     let filter = SubscriptionFilter::on_event_type()
-        .add_prefix("stockItem")
+        .add_prefix(STREAM_PREFIX)
         .exclude_system_events();
     let options = SubscribeToAllOptions::default()
         .filter(filter)
