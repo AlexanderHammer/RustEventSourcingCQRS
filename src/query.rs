@@ -18,8 +18,8 @@ async fn main() -> std::io::Result<()> {
 }
 
 #[get("/stock-item/{part_no}")]
-async fn get_stock_item(client: web::Data<Client>, path: web::Path<(String)>) -> impl Responder {
-    let (part_no) = path.into_inner();
+async fn get_stock_item(client: web::Data<Client>, path: web::Path<String>) -> impl Responder {
+    let part_no = path.into_inner();
     let collection: mongodb::Collection<Document> =
         client.database("stock").collection("stockItems");
     let stock_item = collection
