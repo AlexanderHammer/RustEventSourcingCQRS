@@ -61,7 +61,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
         .position(StreamPosition::End)
         .max_count(1);
 
-    if let Ok(mut stream) = es_client.read_stream(&stream_name, &read_stream_options).await {
+    if let Ok(mut stream) = es_client.read_stream(&*stream_name, &read_stream_options).await {
         while let Ok(Some(event)) = stream.next().await
         {
             let mut _new_total: f64 = 0.0;
@@ -96,7 +96,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
             let evt = EventData::json(StockEvent::ADD.to_string(), &command)?.id(Uuid::new_v4());
             let options = AppendToStreamOptions::default().
                 expected_revision(ExpectedRevision::Exact(recorded_event.revision));
-            let append_result = es_client.append_to_stream(&stream_name, &options, evt);
+            let append_result = es_client.append_to_stream(&*stream_name, &options, evt);
 
             return match append_result.await {
                 Ok(_) => Ok(HttpResponse::Accepted()),
