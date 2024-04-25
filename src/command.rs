@@ -53,7 +53,7 @@ async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) ->
     }
 }
 
-#[post("/stock-item/add/{part_no}/{increment}")]
+#[post("/stock-item/{part_no}/add/{increment}")]
 async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>) -> impl Responder {
     let (part_no, increment) = path.into_inner();
     let stream_name = format!("{}-{}", STREAM_PREFIX, &part_no);
@@ -77,7 +77,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::SET => match recorded_event.as_json::<AdjustStockItem>() {
-                        Ok(_) => _new_total = increment,
+                        Ok(event) => _new_total = event.total + increment,
                         Err(error) => return Err(error::ErrorExpectationFailed(error.to_string())),
                     },
                     StockEvent::DELETE => {
@@ -107,7 +107,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
     Err(error::ErrorFailedDependency("Reading stream failed"))
 }
 
-#[put("/stock-item/set/{part_no}/{set_amount}")]
+#[put("/stock-item/{part_no}/set/{set_amount}")]
 async fn set_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>) -> impl Responder {
     let (part_no, set_amount) = path.into_inner();
     let command = AdjustStockItem { part_no, increment: set_amount, total: set_amount };
