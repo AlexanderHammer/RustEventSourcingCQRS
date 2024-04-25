@@ -3,7 +3,7 @@ use mongodb::{bson::{doc, Document}, Client};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| "mongodb://localhost:27017".into());
+    let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| "mongodb://localhost:27017/?maxIdleTimeMS=12000".into());
     let client = Client::with_uri_str(uri).await.expect("failed to connect");
 
     HttpServer::new(move || {

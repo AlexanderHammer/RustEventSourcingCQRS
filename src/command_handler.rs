@@ -14,7 +14,7 @@ const STREAM_PREFIX: &str = "stockItem";
 const DATABASE: &str = "stock";
 const COLLECTION: &str = "stockItems";
 const D_ID: &str = "part_no";
-const MONGODB_URI: &str = "mongodb://localhost:27017";
+const MONGODB_URI: &str = "mongodb://localhost:27017/?maxIdleTimeMS=12000";
 
 #[tokio::main]
 async fn main() {
