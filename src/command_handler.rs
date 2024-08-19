@@ -20,7 +20,7 @@ const MONGODB_URI: &str = "mongodb://localhost:27017/?maxIdleTimeMS=12000";
 async fn main() {
     // Create a new client options object and parse the MongoDB URI
     let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| MONGODB_URI.into());
-    let mut client_options = ClientOptions::parse_async(uri).await.unwrap();
+    let mut client_options = ClientOptions::parse(uri.as_str()).await.unwrap();
     // Set the server_api field of the client_options object to Stable API version 1
     let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
     client_options.server_api = Some(server_api);
@@ -80,11 +80,11 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
 async fn create(mdb_client: &MDBClient, _event: CreateStockItem) -> Result<(), Box<dyn Error>> {
     let collection: mongodb::Collection<CreateStockItem> = mdb_client.database(DATABASE).collection(COLLECTION);
     let filter = doc! { D_ID: doc! { "$regex": &_event.part_no } };
-    let ct = collection.count_documents(filter, None).await?;
+    let ct = collection.count_documents(filter).await?;
     if ct > 0 {
         return Err("Stock item already exists".into());
     }
-    collection.insert_one(&_event, None).await?;
+    collection.insert_one(&_event).await?;
     Ok(())
 }
 
@@ -92,7 +92,7 @@ async fn add(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<
     let collection: mongodb::Collection<Document> = mdb_client.database(DATABASE).collection(COLLECTION);
     let filter = doc! { D_ID: &_event.part_no };
     let update = doc! { "$set": doc! {"total": &_event.total} };
-    collection.update_one(filter, update, None).await?;
+    collection.update_one(filter, update).await?;
     Ok(())
 }
 
@@ -100,14 +100,14 @@ async fn set(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<
     let collection: mongodb::Collection<Document> = mdb_client.database(DATABASE).collection(COLLECTION);
     let filter = doc! { D_ID: &_event.part_no };
     let update = doc! { "$set": doc! {"total": &_event.total} };
-    collection.update_one(filter, update, None).await?;
+    collection.update_one(filter, update).await?;
     Ok(())
 }
 
 async fn delete(es_client: &ESClient, mdb_client: &MDBClient, _event: DeleteStockItem, stream_name: &str) -> Result<(), Box<dyn Error>> {
     let collection: mongodb::Collection<Document> = mdb_client.database(DATABASE).collection(COLLECTION);
     let filter = doc! { D_ID: &_event.part_no };
-    collection.delete_one(filter, None).await?;
+    collection.delete_one(filter).await?;
     es_client.delete_stream(stream_name, &DeleteStreamOptions::default()).await?;
     Ok(())
 }

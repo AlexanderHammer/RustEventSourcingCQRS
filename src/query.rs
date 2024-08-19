@@ -23,7 +23,7 @@ async fn get_stock_item(client: web::Data<Client>, path: web::Path<String>) -> i
     let collection: mongodb::Collection<Document> =
         client.database("stock").collection("stockItems");
     let stock_item = collection
-        .find_one(doc! { "part_no": part_no }, None)
+        .find_one(doc! { "part_no": part_no })
         .await;
 
     match stock_item.unwrap() {
