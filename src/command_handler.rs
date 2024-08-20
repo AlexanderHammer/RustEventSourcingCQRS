@@ -74,30 +74,38 @@ async fn read_all_events(
             let revision = event.get_original_event().revision;
             match event_type {
                 StockEvent::CREATE => match event.get_original_event().as_json() {
-                    Ok(x) => create(&collection, &x, &revision).await.unwrap_or_else(|e| {
-                        tracing::error!(
-                            "Error while creating stock item with part_no: {} | error: {}",
-                            &x.part_no, e
-                        )
-                    }),
+                    Ok(create_event) => create(&collection, create_event, revision)
+                        .await
+                        .unwrap_or_else(|e| {
+                            tracing::error!("Error while creating stock item, error: {}", e)
+                        }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::ADD => match event.get_original_event().as_json() {
-                    Ok(x) => adjust(&collection, &x, &revision).await.unwrap_or_else(|e| {
-                        tracing::error!("Error while adding amount to stock item: {}", e)
-                    }),
+                    Ok(adjust_event) => adjust(&collection, adjust_event, revision)
+                        .await
+                        .unwrap_or_else(|e| {
+                            tracing::error!("Error while adding amount to stock item: {}", e)
+                        }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::SET => match event.get_original_event().as_json() {
-                    Ok(x) => set(&collection, &x, &revision).await.unwrap_or_else(|e| {
-                        tracing::error!("Error while setting new amount for stock item: {}", e)
-                    }),
+                    Ok(adjust_event) => set(&collection, adjust_event, revision)
+                        .await
+                        .unwrap_or_else(|e| {
+                            tracing::error!("Error while setting new amount for stock item: {}", e)
+                        }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::DELETE => match event.get_original_event().as_json() {
-                    Ok(x) => delete(&es_client, &collection, &x, &event.get_original_stream_id())
-                        .await
-                        .unwrap_or_else(|e| tracing::error!("Error while deleting stock item: {}", e)),
+                    Ok(delete_event) => delete(
+                        &es_client,
+                        &collection,
+                        delete_event,
+                        &event.get_original_stream_id(),
+                    )
+                    .await
+                    .unwrap_or_else(|e| tracing::error!("Error while deleting stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
             }
@@ -107,74 +115,59 @@ async fn read_all_events(
 
 async fn create(
     collection: &Collection<StockItem>,
-    _event: &CreateStockItem,
-    revision: &u64,
+    _event: CreateStockItem,
+    revision: u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: doc! { "$regex": &_event.part_no } };
+    let stock_item_doc = StockItem {
+        part_no: _event.part_no,
+        name: _event.name,
+        description: _event.description,
+        category: _event.category,
+        total: _event.total,
+        revision,
+    };
     let ct = collection.count_documents(filter).await?;
     if ct > 0 {
-        return Err("Stock item already exists, creation aborted".into());
+        collection.insert_one(stock_item_doc).await?;
+    } else {
+        collection.insert_one(stock_item_doc).await?;
     }
-    let stock_item_doc = StockItem {
-        part_no: _event.part_no.clone(),
-        name: _event.name.clone(),
-        description: _event.description.clone(),
-        category: _event.category.clone(),
-        total: _event.total.clone(),
-        revision: *revision,
-    };
-    collection.insert_one(stock_item_doc).await?;
-    tracing::info!(
-        "Inserted stock item with part_no: {}, revision: {}",
-        _event.part_no, revision
-    );
     Ok(())
 }
 
 async fn adjust(
     collection: &Collection<StockItem>,
-    _event: &AdjustStockItem,
-    revision: &u64,
+    _event: AdjustStockItem,
+    revision: u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update =
-        doc! { "$set": doc! {"total": _event.total, "revision": Bson::Int64(*revision as i64) } };
+        doc! { "$set": doc! {"total": _event.total, "revision": Bson::Int64(revision as i64) } };
     collection.update_one(filter, update).await?;
-    tracing::info!(
-        "Updated stock item with part_no: {}, revision: {}",
-        _event.part_no, revision
-    );
     Ok(())
 }
 
 async fn set(
     collection: &Collection<StockItem>,
-    _event: &AdjustStockItem,
-    revision: &u64,
+    _event: AdjustStockItem,
+    revision: u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update =
-        doc! { "$set": doc! {"total": &_event.total, "revision": Bson::Int64(*revision as i64)} };
+        doc! { "$set": doc! {"total": &_event.total, "revision": Bson::Int64(revision as i64)} };
     collection.update_one(filter, update).await?;
-    tracing::info!(
-        "Set stock item with part_no: {}, revision: {}",
-        _event.part_no, revision
-    );
     Ok(())
 }
 
 async fn delete(
     es_client: &ESClient,
     collection: &Collection<StockItem>,
-    _event: &DeleteStockItem,
+    _event: DeleteStockItem,
     stream_name: &str,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
-    let res = collection.delete_one(filter).await?;
-    tracing::info!(
-        "Deleted stock item with part_no: {}, deleted count {}",
-        _event.part_no, res.deleted_count
-    );
+    collection.delete_one(filter).await?;
     es_client
         .delete_stream(stream_name, &DeleteStreamOptions::default())
         .await?;
