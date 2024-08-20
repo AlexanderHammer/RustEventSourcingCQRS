@@ -104,7 +104,7 @@ async fn add_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
             };
         }
     }
-    Err(error::ErrorFailedDependency("Reading stream failed"))
+    Err(error::ErrorFailedDependency("Stream must exist before adjusting amount"))
 }
 
 #[put("/stock-item/{part_no}/set/{set_amount}")]
