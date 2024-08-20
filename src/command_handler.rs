@@ -33,9 +33,7 @@ async fn main() {
     let mongo_client = MDBClient::with_options(client_options).unwrap();
 
     // Create a new EventStoreDB client
-    let settings = EVENTSTORE_URI
-        .parse()
-        .unwrap();
+    let settings = EVENTSTORE_URI.parse().unwrap();
     let es_client = ESClient::new(settings).unwrap();
     let collection: Collection<StockItem> = mongo_client
         .database(DATABASE_NAME)
@@ -63,96 +61,110 @@ async fn read_all_events(
 
         if let Ok(event_type) = StockEvent::from_str(event.get_original_event().event_type.as_str())
         {
-            let position = event.get_original_event().revision;
+            let revision = event.get_original_event().revision;
             match event_type {
                 StockEvent::CREATE => match event.get_original_event().as_json() {
-                    Ok(x) => create(&collection, x, position)
-                        .await
-                        .unwrap_or_else(|e| eprintln!("Error while creating stock item: {}", e)),
+                    Ok(x) => create(&collection, &x, revision).await.unwrap_or_else(|e| {
+                        eprintln!(
+                            "Error while creating stock item with part_no: {} | error: {}",
+                            &x.part_no, e
+                        )
+                    }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::ADD => match event.get_original_event().as_json() {
-                    Ok(x) => adjust(&collection, x, position).await.unwrap_or_else(|e| {
+                    Ok(x) => adjust(&collection, &x, revision).await.unwrap_or_else(|e| {
                         eprintln!("Error while adding amount to stock item: {}", e)
                     }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::SET => match event.get_original_event().as_json() {
-                    Ok(x) => set(&collection, x, position).await.unwrap_or_else(|e| {
+                    Ok(x) => set(&collection, &x, revision).await.unwrap_or_else(|e| {
                         eprintln!("Error while setting new amount for stock item: {}", e)
                     }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::DELETE => match event.get_original_event().as_json() {
-                    Ok(x) => delete(&es_client, &collection, x, event.get_original_stream_id())
+                    Ok(x) => delete(&es_client, &collection, &x, &event.get_original_stream_id())
                         .await
                         .unwrap_or_else(|e| eprintln!("Error while deleting stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
             }
-            println!(
-                "Processed event {}@{}",
-                event.get_original_event().revision,
-                event.get_original_event().stream_id
-            );
         };
     }
 }
 
 async fn create(
     collection: &Collection<StockItem>,
-    _event: CreateStockItem,
+    _event: &CreateStockItem,
     revision: u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: doc! { "$regex": &_event.part_no } };
     let ct = collection.count_documents(filter).await?;
     if ct > 0 {
-        return Err("Stock item already exists, creation aborted.".into());
+        return Err("Stock item already exists, creation aborted".into());
     }
     let stock_item_doc = StockItem {
-        part_no: _event.part_no,
-        name: _event.name,
-        description: _event.description,
-        category: _event.category,
-        total: _event.total,
+        part_no: _event.part_no.clone(),
+        name: _event.name.clone(),
+        description: _event.description.clone(),
+        category: _event.category.clone(),
+        total: _event.total.clone(),
         revision,
     };
     collection.insert_one(stock_item_doc).await?;
+    println!(
+        "Inserted stock item with part_no: {}, revision: {}",
+        &_event.part_no, revision
+    );
     Ok(())
 }
 
 async fn adjust(
     collection: &Collection<StockItem>,
-    _event: AdjustStockItem,
+    _event: &AdjustStockItem,
     revision: u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update =
         doc! { "$set": doc! {"total": _event.total, "revision": Bson::Int64(revision as i64) } };
     collection.update_one(filter, update).await?;
+    println!(
+        "Updated stock item with part_no: {}, revision: {}",
+        &_event.part_no, revision
+    );
     Ok(())
 }
 
 async fn set(
     collection: &Collection<StockItem>,
-    _event: AdjustStockItem,
+    _event: &AdjustStockItem,
     revision: u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update =
         doc! { "$set": doc! {"total": &_event.total, "revision": Bson::Int64(revision as i64)} };
     collection.update_one(filter, update).await?;
+    println!(
+        "Set stock item with part_no: {}, revision: {}",
+        &_event.part_no, revision
+    );
     Ok(())
 }
 
 async fn delete(
     es_client: &ESClient,
     collection: &Collection<StockItem>,
-    _event: DeleteStockItem,
+    _event: &DeleteStockItem,
     stream_name: &str,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
-    collection.delete_one(filter).await?;
+    let res = collection.delete_one(filter).await?;
+    println!(
+        "Deleted stock item with part_no: {}, deleted count {}",
+        &_event.part_no, res.deleted_count
+    );
     es_client
         .delete_stream(stream_name, &DeleteStreamOptions::default())
         .await?;
