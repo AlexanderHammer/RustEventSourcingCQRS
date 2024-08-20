@@ -19,6 +19,7 @@ const DATABASE_NAME: &str = "stock";
 const COLLECTION_NAME: &str = "stockItems";
 const D_ID: &str = "part_no";
 const MONGODB_URI: &str = "mongodb://localhost:27017/?maxIdleTimeMS=12000";
+const EVENTSTORE_URI: &str = "esdb://admin:changeit@localhost:2113?tls=false";
 
 #[tokio::main]
 async fn main() {
@@ -32,7 +33,7 @@ async fn main() {
     let mongo_client = MDBClient::with_options(client_options).unwrap();
 
     // Create a new EventStoreDB client
-    let settings = "esdb://admin:changeit@localhost:2113?tls=false"
+    let settings = EVENTSTORE_URI
         .parse()
         .unwrap();
     let es_client = ESClient::new(settings).unwrap();
