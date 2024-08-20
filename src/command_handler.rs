@@ -53,7 +53,7 @@ async fn read_all_events(es_client: &ESClient, collection: &Collection<StockItem
         let event = sub.next().await?;
 
         if let Ok(event_type) = StockEvent::from_str(event.get_original_event().event_type.as_str()) {
-            let position = event.commit_position.unwrap();
+            let position = event.get_original_event().revision;
             match event_type {
                 StockEvent::CREATE => match event.get_original_event().as_json() {
                     Ok(x) => create(&collection, x, position).await.unwrap_or_else(
@@ -76,6 +76,7 @@ async fn read_all_events(es_client: &ESClient, collection: &Collection<StockItem
                     Err(_) => print_event(&event),
                 },
             }
+            println!("Processed event {}@{}", event.get_original_event().revision, event.get_original_event().stream_id);
         };
     }
 }
