@@ -121,7 +121,7 @@ async fn set_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
 
     match append_result.await {
         Ok(_) => Ok(HttpResponse::Accepted()),
-        Err(_) => Err(error::ErrorExpectationFailed("Who knows")),
+        Err(_) => Err(error::ErrorExpectationFailed("Stream must exist before setting amount")),
     }
 }
 
