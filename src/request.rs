@@ -40,3 +40,13 @@ pub struct CreateGenericEvent {
 pub struct GenericEvent {
     pub data: HashMap<String, String>,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StockItem {
+    pub part_no: String,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub total: f64,
+    pub _etag: u64,
+}
