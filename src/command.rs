@@ -48,7 +48,7 @@ async fn post_stock_item(es_client: web::Data<Client>, payload: web::Payload) ->
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
-        Ok(_) => return Ok(HttpResponse::Accepted()),
+        Ok(_) => Ok(HttpResponse::Accepted()),
         Err(_) => Err(error::ErrorExpectationFailed("Stock item already exists")),
     }
 }
@@ -120,7 +120,7 @@ async fn set_amount(es_client: web::Data<Client>, path: web::Path<(String, f64)>
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
-        Ok(_) => return Ok(HttpResponse::Accepted()),
+        Ok(_) => Ok(HttpResponse::Accepted()),
         Err(_) => Err(error::ErrorExpectationFailed("Who knows")),
     }
 }
@@ -135,7 +135,7 @@ async fn delete_stock_item(es_client: web::Data<Client>, path: web::Path<String>
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
-        Ok(_) => return Ok(HttpResponse::Accepted()),
+        Ok(_) => Ok(HttpResponse::Accepted()),
         Err(_) => Err(error::ErrorExpectationFailed("Who knows")),
     }
 }
@@ -161,7 +161,7 @@ async fn post_generic_event(es_client: web::Data<Client>, payload: web::Payload)
     let append_result = es_client.append_to_stream(stream_name, &options, evt);
 
     match append_result.await {
-        Ok(_) => return Ok(HttpResponse::Accepted()),
+        Ok(_) => Ok(HttpResponse::Accepted()),
         Err(e) => Err(error::ErrorImATeapot(format!(
             "Error occurred while appending event: {}",
             e.to_string()
