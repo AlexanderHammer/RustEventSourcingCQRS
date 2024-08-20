@@ -53,7 +53,7 @@ async fn read_all_events(es_client: &ESClient, collection: &Collection<StockItem
         let event = sub.next().await?;
 
         if let Ok(event_type) = StockEvent::from_str(event.get_original_event().event_type.as_str()) {
-            let position = event.commit_position.unwrap();
+            let position = event.get_original_event().revision;
             match event_type {
                 StockEvent::CREATE => match event.get_original_event().as_json() {
                     Ok(x) => create(&collection, x, position).await.unwrap_or_else(
@@ -76,11 +76,12 @@ async fn read_all_events(es_client: &ESClient, collection: &Collection<StockItem
                     Err(_) => print_event(&event),
                 },
             }
+            println!("Processed event {}@{}", event.get_original_event().revision, event.get_original_event().stream_id);
         };
     }
 }
 
-async fn create(collection: &Collection<StockItem>, _event: CreateStockItem, position: u64) -> Result<(), Box<dyn Error>> {
+async fn create(collection: &Collection<StockItem>, _event: CreateStockItem, revision: u64) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: doc! { "$regex": &_event.part_no } };
     let ct = collection.count_documents(filter).await?;
     if ct > 0 {
@@ -92,22 +93,22 @@ async fn create(collection: &Collection<StockItem>, _event: CreateStockItem, pos
         description: _event.description,
         category: _event.category,
         total: _event.total,
-        _etag: position,
+        _etag: revision,
     };
     collection.insert_one(stock_item_doc).await?;
     Ok(())
 }
 
-async fn adjust(collection: &Collection<StockItem>, _event: AdjustStockItem, position: u64) -> Result<(), Box<dyn Error>> {
+async fn adjust(collection: &Collection<StockItem>, _event: AdjustStockItem, revision: u64) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
-    let update = doc! { "$set": doc! {"total": _event.total, "_etag": Bson::Int64(position as i64) } };
+    let update = doc! { "$set": doc! {"total": _event.total, "_etag": Bson::Int64(revision as i64) } };
     collection.update_one(filter, update).await?;
     Ok(())
 }
 
-async fn set(collection: &Collection<StockItem>, _event: AdjustStockItem, position: u64) -> Result<(), Box<dyn Error>> {
+async fn set(collection: &Collection<StockItem>, _event: AdjustStockItem, revision: u64) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
-    let update = doc! { "$set": doc! {"total": &_event.total, "_etag": Bson::Int64(position as i64)} };
+    let update = doc! { "$set": doc! {"total": &_event.total, "_etag": Bson::Int64(revision as i64)} };
     collection.update_one(filter, update).await?;
     Ok(())
 }
