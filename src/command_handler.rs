@@ -116,7 +116,7 @@ async fn create(
     collection.insert_one(stock_item_doc).await?;
     println!(
         "Inserted stock item with part_no: {}, revision: {}",
-        &_event.part_no, revision
+        _event.part_no, revision
     );
     Ok(())
 }
@@ -132,7 +132,7 @@ async fn adjust(
     collection.update_one(filter, update).await?;
     println!(
         "Updated stock item with part_no: {}, revision: {}",
-        &_event.part_no, revision
+        _event.part_no, revision
     );
     Ok(())
 }
@@ -148,7 +148,7 @@ async fn set(
     collection.update_one(filter, update).await?;
     println!(
         "Set stock item with part_no: {}, revision: {}",
-        &_event.part_no, revision
+        _event.part_no, revision
     );
     Ok(())
 }
@@ -163,7 +163,7 @@ async fn delete(
     let res = collection.delete_one(filter).await?;
     println!(
         "Deleted stock item with part_no: {}, deleted count {}",
-        &_event.part_no, res.deleted_count
+        _event.part_no, res.deleted_count
     );
     es_client
         .delete_stream(stream_name, &DeleteStreamOptions::default())
