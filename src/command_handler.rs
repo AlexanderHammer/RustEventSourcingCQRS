@@ -115,7 +115,7 @@ async fn create(
         description: _event.description,
         category: _event.category,
         total: _event.total,
-        _etag: revision,
+        revision,
     };
     collection.insert_one(stock_item_doc).await?;
     Ok(())
@@ -128,7 +128,7 @@ async fn adjust(
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update =
-        doc! { "$set": doc! {"total": _event.total, "_etag": Bson::Int64(revision as i64) } };
+        doc! { "$set": doc! {"total": _event.total, "revision": Bson::Int64(revision as i64) } };
     collection.update_one(filter, update).await?;
     Ok(())
 }
@@ -140,7 +140,7 @@ async fn set(
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update =
-        doc! { "$set": doc! {"total": &_event.total, "_etag": Bson::Int64(revision as i64)} };
+        doc! { "$set": doc! {"total": &_event.total, "revision": Bson::Int64(revision as i64)} };
     collection.update_one(filter, update).await?;
     Ok(())
 }

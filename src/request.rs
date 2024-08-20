@@ -48,5 +48,5 @@ pub struct StockItem {
     pub description: String,
     pub category: String,
     pub total: f64,
-    pub _etag: u64,
+    pub revision: u64,
 }
