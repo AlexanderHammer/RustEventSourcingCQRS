@@ -1,18 +1,19 @@
 mod stock_event;
 mod request;
+use mongodb::bson::to_document;
 
 use eventstore::{Client as ESClient, DeleteStreamOptions, ResolvedEvent, RetryOptions, SubscribeToAllOptions, SubscriptionFilter};
 use std::error::Error;
 use std::str::FromStr;
-use mongodb::{bson::{doc}, Client as MDBClient};
+use mongodb::{bson::{doc}, Client as MDBClient, Collection};
 use mongodb::bson::Document;
 use mongodb::options::{ClientOptions, ServerApi, ServerApiVersion};
 use stock_event::StockEvent;
 use request::{CreateStockItem, AdjustStockItem, DeleteStockItem};
 
 const STREAM_PREFIX: &str = "stockItem";
-const DATABASE: &str = "stock";
-const COLLECTION: &str = "stockItems";
+const DATABASE_NAME: &str = "stock";
+const COLLECTION_NAME: &str = "stockItems";
 const D_ID: &str = "part_no";
 const MONGODB_URI: &str = "mongodb://localhost:27017/?maxIdleTimeMS=12000";
 
@@ -32,12 +33,13 @@ async fn main() {
         .parse()
         .unwrap();
     let es_client = ESClient::new(settings).unwrap();
-    if let Err(err) = read_all_events(&es_client, &mongo_client).await {
+    let collection: mongodb::Collection<Document> = mongo_client.database(DATABASE_NAME).collection(COLLECTION_NAME);
+    if let Err(err) = read_all_events(&es_client, &collection).await {
         eprintln!("Error while reading events: {}", err);
     }
 }
 
-async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result<(), Box<dyn Error>> {
+async fn read_all_events(es_client: &ESClient, collection: &Collection<Document>) -> Result<(), Box<dyn Error>> {
     let retry = RetryOptions::default().retry_forever();
     let filter = SubscriptionFilter::on_event_type()
         .add_prefix(STREAM_PREFIX)
@@ -53,22 +55,22 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
         if let Ok(event_type) = StockEvent::from_str(event.get_original_event().event_type.as_str()) {
             match event_type {
                 StockEvent::CREATE => match event.get_original_event().as_json() {
-                    Ok(x) => create(&mdb_client, x).await.unwrap_or_else(
+                    Ok(x) => create(&collection, x).await.unwrap_or_else(
                         |e| eprintln!("Error while creating stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::ADD => match event.get_original_event().as_json() {
-                    Ok(x) => add(&mdb_client, x).await.unwrap_or_else(
+                    Ok(x) => add(&collection, x).await.unwrap_or_else(
                         |e| eprintln!("Error while adding amount to stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::SET => match event.get_original_event().as_json() {
-                    Ok(x) => set(&mdb_client, x).await.unwrap_or_else(
+                    Ok(x) => set(&collection, x).await.unwrap_or_else(
                         |e| eprintln!("Error while setting new amount for stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::DELETE => match event.get_original_event().as_json() {
-                    Ok(x) => delete(&es_client, &mdb_client, x, event.get_original_stream_id()).await.unwrap_or_else(
+                    Ok(x) => delete(&es_client, &collection, x, event.get_original_stream_id()).await.unwrap_or_else(
                         |e| eprintln!("Error while deleting stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
@@ -77,35 +79,32 @@ async fn read_all_events(es_client: &ESClient, mdb_client: &MDBClient) -> Result
     }
 }
 
-async fn create(mdb_client: &MDBClient, _event: CreateStockItem) -> Result<(), Box<dyn Error>> {
-    let collection: mongodb::Collection<CreateStockItem> = mdb_client.database(DATABASE).collection(COLLECTION);
+async fn create(collection: &Collection<Document>, _event: CreateStockItem) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: doc! { "$regex": &_event.part_no } };
     let ct = collection.count_documents(filter).await?;
     if ct > 0 {
         return Err("Stock item already exists".into());
     }
-    collection.insert_one(&_event).await?;
+    let stock_item_doc = to_document(&_event)?;
+    collection.insert_one(stock_item_doc).await?;
     Ok(())
 }
 
-async fn add(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<dyn Error>> {
-    let collection: mongodb::Collection<Document> = mdb_client.database(DATABASE).collection(COLLECTION);
+async fn add(collection: &Collection<Document>, _event: AdjustStockItem) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update = doc! { "$set": doc! {"total": &_event.total} };
     collection.update_one(filter, update).await?;
     Ok(())
 }
 
-async fn set(mdb_client: &MDBClient, _event: AdjustStockItem) -> Result<(), Box<dyn Error>> {
-    let collection: mongodb::Collection<Document> = mdb_client.database(DATABASE).collection(COLLECTION);
+async fn set(collection: &Collection<Document>, _event: AdjustStockItem) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update = doc! { "$set": doc! {"total": &_event.total} };
     collection.update_one(filter, update).await?;
     Ok(())
 }
 
-async fn delete(es_client: &ESClient, mdb_client: &MDBClient, _event: DeleteStockItem, stream_name: &str) -> Result<(), Box<dyn Error>> {
-    let collection: mongodb::Collection<Document> = mdb_client.database(DATABASE).collection(COLLECTION);
+async fn delete(es_client: &ESClient, collection: &Collection<Document>, _event: DeleteStockItem, stream_name: &str) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     collection.delete_one(filter).await?;
     es_client.delete_stream(stream_name, &DeleteStreamOptions::default()).await?;
