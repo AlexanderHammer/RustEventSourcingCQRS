@@ -1,5 +1,10 @@
+mod request;
+
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use mongodb::{bson::{doc, Document}, Client};
+use mongodb::{bson::{doc}, Client};
+use crate::request::StockItem;
+
+
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -20,14 +25,14 @@ async fn main() -> std::io::Result<()> {
 #[get("/stock-item/{part_no}")]
 async fn get_stock_item(client: web::Data<Client>, path: web::Path<String>) -> impl Responder {
     let part_no = path.into_inner();
-    let collection: mongodb::Collection<Document> =
+    let collection: mongodb::Collection<StockItem> =
         client.database("stock").collection("stockItems");
     let stock_item = collection
         .find_one(doc! { "part_no": part_no })
         .await;
 
     match stock_item.unwrap() {
-        Some(x) => HttpResponse::Ok().body(x.to_string()),
+        Some(x) => HttpResponse::Ok().json(x),
         None => HttpResponse::NotFound().body("Stock item not found"),
     }
 }
