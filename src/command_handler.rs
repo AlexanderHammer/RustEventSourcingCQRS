@@ -64,7 +64,7 @@ async fn read_all_events(
             let revision = event.get_original_event().revision;
             match event_type {
                 StockEvent::CREATE => match event.get_original_event().as_json() {
-                    Ok(x) => create(&collection, &x, revision).await.unwrap_or_else(|e| {
+                    Ok(x) => create(&collection, &x, &revision).await.unwrap_or_else(|e| {
                         eprintln!(
                             "Error while creating stock item with part_no: {} | error: {}",
                             &x.part_no, e
@@ -73,13 +73,13 @@ async fn read_all_events(
                     Err(_) => print_event(&event),
                 },
                 StockEvent::ADD => match event.get_original_event().as_json() {
-                    Ok(x) => adjust(&collection, &x, revision).await.unwrap_or_else(|e| {
+                    Ok(x) => adjust(&collection, &x, &revision).await.unwrap_or_else(|e| {
                         eprintln!("Error while adding amount to stock item: {}", e)
                     }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::SET => match event.get_original_event().as_json() {
-                    Ok(x) => set(&collection, &x, revision).await.unwrap_or_else(|e| {
+                    Ok(x) => set(&collection, &x, &revision).await.unwrap_or_else(|e| {
                         eprintln!("Error while setting new amount for stock item: {}", e)
                     }),
                     Err(_) => print_event(&event),
@@ -98,7 +98,7 @@ async fn read_all_events(
 async fn create(
     collection: &Collection<StockItem>,
     _event: &CreateStockItem,
-    revision: u64,
+    revision: &u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: doc! { "$regex": &_event.part_no } };
     let ct = collection.count_documents(filter).await?;
@@ -111,7 +111,7 @@ async fn create(
         description: _event.description.clone(),
         category: _event.category.clone(),
         total: _event.total.clone(),
-        revision,
+        revision: *revision,
     };
     collection.insert_one(stock_item_doc).await?;
     println!(
@@ -124,11 +124,11 @@ async fn create(
 async fn adjust(
     collection: &Collection<StockItem>,
     _event: &AdjustStockItem,
-    revision: u64,
+    revision: &u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update =
-        doc! { "$set": doc! {"total": _event.total, "revision": Bson::Int64(revision as i64) } };
+        doc! { "$set": doc! {"total": _event.total, "revision": Bson::Int64(*revision as i64) } };
     collection.update_one(filter, update).await?;
     println!(
         "Updated stock item with part_no: {}, revision: {}",
@@ -140,11 +140,11 @@ async fn adjust(
 async fn set(
     collection: &Collection<StockItem>,
     _event: &AdjustStockItem,
-    revision: u64,
+    revision: &u64,
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let update =
-        doc! { "$set": doc! {"total": &_event.total, "revision": Bson::Int64(revision as i64)} };
+        doc! { "$set": doc! {"total": &_event.total, "revision": Bson::Int64(*revision as i64)} };
     collection.update_one(filter, update).await?;
     println!(
         "Set stock item with part_no: {}, revision: {}",
