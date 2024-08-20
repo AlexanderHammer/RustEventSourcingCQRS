@@ -23,6 +23,16 @@ const EVENTSTORE_URI: &str = "esdb://admin:changeit@localhost:2113?tls=false";
 
 #[tokio::main]
 async fn main() {
+    let subscriber = tracing_subscriber::fmt()
+        .compact()
+        .with_file(true)
+        .with_line_number(true)
+        .with_thread_ids(true)
+        .with_target(false)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+
     // Create a new client options object and parse the MongoDB URI
     let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| MONGODB_URI.into());
     let mut client_options = ClientOptions::parse(uri.as_str()).await.unwrap();
@@ -39,7 +49,7 @@ async fn main() {
         .database(DATABASE_NAME)
         .collection(COLLECTION_NAME);
     if let Err(err) = read_all_events(&es_client, &collection).await {
-        eprintln!("Error while reading events: {}", err);
+        tracing::error!("Error while reading events: {}", err);
     }
 }
 
@@ -65,7 +75,7 @@ async fn read_all_events(
             match event_type {
                 StockEvent::CREATE => match event.get_original_event().as_json() {
                     Ok(x) => create(&collection, &x, &revision).await.unwrap_or_else(|e| {
-                        eprintln!(
+                        tracing::error!(
                             "Error while creating stock item with part_no: {} | error: {}",
                             &x.part_no, e
                         )
@@ -74,20 +84,20 @@ async fn read_all_events(
                 },
                 StockEvent::ADD => match event.get_original_event().as_json() {
                     Ok(x) => adjust(&collection, &x, &revision).await.unwrap_or_else(|e| {
-                        eprintln!("Error while adding amount to stock item: {}", e)
+                        tracing::error!("Error while adding amount to stock item: {}", e)
                     }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::SET => match event.get_original_event().as_json() {
                     Ok(x) => set(&collection, &x, &revision).await.unwrap_or_else(|e| {
-                        eprintln!("Error while setting new amount for stock item: {}", e)
+                        tracing::error!("Error while setting new amount for stock item: {}", e)
                     }),
                     Err(_) => print_event(&event),
                 },
                 StockEvent::DELETE => match event.get_original_event().as_json() {
                     Ok(x) => delete(&es_client, &collection, &x, &event.get_original_stream_id())
                         .await
-                        .unwrap_or_else(|e| eprintln!("Error while deleting stock item: {}", e)),
+                        .unwrap_or_else(|e| tracing::error!("Error while deleting stock item: {}", e)),
                     Err(_) => print_event(&event),
                 },
             }
@@ -114,7 +124,7 @@ async fn create(
         revision: *revision,
     };
     collection.insert_one(stock_item_doc).await?;
-    println!(
+    tracing::info!(
         "Inserted stock item with part_no: {}, revision: {}",
         _event.part_no, revision
     );
@@ -130,7 +140,7 @@ async fn adjust(
     let update =
         doc! { "$set": doc! {"total": _event.total, "revision": Bson::Int64(*revision as i64) } };
     collection.update_one(filter, update).await?;
-    println!(
+    tracing::info!(
         "Updated stock item with part_no: {}, revision: {}",
         _event.part_no, revision
     );
@@ -146,7 +156,7 @@ async fn set(
     let update =
         doc! { "$set": doc! {"total": &_event.total, "revision": Bson::Int64(*revision as i64)} };
     collection.update_one(filter, update).await?;
-    println!(
+    tracing::info!(
         "Set stock item with part_no: {}, revision: {}",
         _event.part_no, revision
     );
@@ -161,7 +171,7 @@ async fn delete(
 ) -> Result<(), Box<dyn Error>> {
     let filter = doc! { D_ID: &_event.part_no };
     let res = collection.delete_one(filter).await?;
-    println!(
+    tracing::info!(
         "Deleted stock item with part_no: {}, deleted count {}",
         _event.part_no, res.deleted_count
     );
@@ -172,7 +182,7 @@ async fn delete(
 }
 
 fn print_event(event: &ResolvedEvent) {
-    println!(
+    tracing::info!(
         "Errored received event {}@{}, {:?}",
         event.get_original_event().revision,
         event.get_original_event().stream_id,
